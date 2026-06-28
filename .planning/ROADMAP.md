@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. `pio run -e m5stack-sticks3` reaches the compile stage on the new toolchain (dependency + partition resolution succeeds; source-level API errors are expected and addressed in Phase 3)
 
 **Plans**: 1 plan
-Plans:
+Plans:
 
 - [x] 01-01-PLAN.md — Dual-env platformio.ini on M5Unified + M5GFX with 8MB partitions (BUILD-01/02/03)
 
@@ -49,11 +49,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A translation unit that includes only `compat.h` (plus M5Unified/M5GFX) compiles with zero errors under `pio run -e m5stack-sticks3`
   4. The UI/render source files remain unedited — the shim absorbs all name changes
 
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
 
-- [ ] 02-01: TBD
+- [ ] 02-01-PLAN.md — Create src/compat.h (verbatim PR #48 base + full board-conditional helper set) and prove it compiles standalone under the StickS3 env (SHIM-01)
 
 ### Phase 3: API Port
 
@@ -99,6 +99,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Build System | 1/1 | Complete    | 2026-06-28 |
-| 2. Compatibility Shim | 0/TBD | Not started | - |
+| 2. Compatibility Shim | 0/1 | Not started | - |
 | 3. API Port | 0/TBD | Not started | - |
 | 4. Haptics → Chimes | 0/TBD | Not started | - |

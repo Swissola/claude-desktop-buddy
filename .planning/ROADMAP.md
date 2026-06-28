@@ -66,11 +66,14 @@ Plans:
   3. `pio run -e m5stack-sticks3` builds with zero errors
   4. `pio run -e m5stickc-plus` still builds green from the same source (no regression to the working device)
 
-**Plans**: TBD
-
+**Plans**: 5 plans
 Plans:
 
-- [ ] 03-01: TBD
+- [ ] 03-01-PLAN.md — Amend compat.h: board-agnostic M5.Power power block (RF-04) + rail-cut idle-sleep (RF-03/D-08) + compatBeep (D-10) + button-pin macros (PORT-01/03)
+- [ ] 03-02-PLAN.md — Port main.cpp: include swap + M5.begin(cfg) (D-09) + core-3.x LEDC migration + all M5.Axp/M5.Rtc/M5.Beep swaps + idle-sleep path (PORT-01)
+- [ ] 03-03-PLAN.md — Port stats.h/xfer.h/data.h: power-helper swaps + coulomb-gauge drop (O2) + compatRtcSet time-seed (PORT-02)
+- [ ] 03-04-PLAN.md — Fix TFT_eSPI forward-decl conflicts + swap M5StickCPlus.h include across buddy/character + all 20 buddies (PORT-02)
+- [ ] 03-05-PLAN.md — Dual-env build (m5stickc-plus first) to zero-error + D-08 StickC-Plus hardware smoke checklist (PORT-03)
 
 ### Phase 4: Haptics → Chimes
 
@@ -99,5 +102,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Build System | 1/1 | Complete    | 2026-06-28 |
 | 2. Compatibility Shim | 1/1 | Complete    | 2026-06-28 |
-| 3. API Port | 0/TBD | Not started | - |
+| 3. API Port | 0/5 | Not started | - |
 | 4. Haptics → Chimes | 0/TBD | Not started | - |

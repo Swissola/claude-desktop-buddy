@@ -7,6 +7,7 @@ This milestone takes the fork's M5StickC Plus-only firmware and makes it build a
 ## Phases
 
 **Phase Numbering:**
+
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
@@ -20,59 +21,74 @@ Decimal phases appear between their surrounding integers in numeric order.
 ## Phase Details
 
 ### Phase 1: Build System
+
 **Goal**: A dual-environment PlatformIO build stands up on M5Unified + M5GFX, with the StickS3 env wired to 8MB flash partitions, replacing the board-specific M5StickCPlus library.
 **Depends on**: Nothing (first phase)
 **Requirements**: BUILD-01, BUILD-02, BUILD-03
 **Success Criteria** (what must be TRUE):
+
   1. `platformio.ini` exposes a shared `[common]` section plus two envs, `m5stickc-plus` and `m5stack-sticks3`, both pointing at the same `src/` tree
   2. The dependency list resolves `m5stack/M5Unified @ ^0.2.x` + `M5GFX` (with `AnimatedGIF` and `ArduinoJson` retained) and no longer references the `M5StickCPlus` library
   3. `partitions_8mb.csv` exists (8MB flash, QIO-OPI, USB-CDC-on-boot) and the `m5stack-sticks3` env references it via `board_build.partitions`
   4. `pio run -e m5stack-sticks3` reaches the compile stage on the new toolchain (dependency + partition resolution succeeds; source-level API errors are expected and addressed in Phase 3)
-**Plans**: 1 plan
 
-Plans:
+**Plans**: 1 plan
+Plans:
+
 - [ ] 01-01-PLAN.md — Dual-env platformio.ini on M5Unified + M5GFX with 8MB partitions (BUILD-01/02/03)
 
 ### Phase 2: Compatibility Shim
+
 **Goal**: A `src/compat.h` shim re-creates the legacy M5StickCPlus names on top of M5Unified/M5GFX so the existing UI and render code compiles against the new libraries without edits.
 **Depends on**: Phase 1
 **Requirements**: SHIM-01
 **Success Criteria** (what must be TRUE):
+
   1. `src/compat.h` defines the legacy type aliases `TFT_eSprite`→`M5Canvas` and `TFT_eSPI`→`lgfx::LGFXBase`
   2. The shim provides a software RTC and the `compatOnUsb` / `compatLed` / `compatChipTempC` helpers so no UI code calls AXP/RTC/LED APIs directly
   3. A translation unit that includes only `compat.h` (plus M5Unified/M5GFX) compiles with zero errors under `pio run -e m5stack-sticks3`
   4. The UI/render source files remain unedited — the shim absorbs all name changes
+
 **Plans**: TBD
 
 Plans:
+
 - [ ] 02-01: TBD
 
 ### Phase 3: API Port
+
 **Goal**: `main.cpp` and the buddy/character code are moved onto the unified API through `compat.h`, so both board environments compile cleanly from the identical source.
 **Depends on**: Phase 2
 **Requirements**: PORT-01, PORT-02, PORT-03
 **Success Criteria** (what must be TRUE):
+
   1. `src/main.cpp` includes `compat.h` instead of `M5StickCPlus.h` and uses `M5.Power`, `compatRtc*`, `compatLed*`, and `compatChipTempC` in place of the old `M5.Axp` / `M5.Rtc` / direct-LED / AXP-temp calls
   2. `src/buddies/*.cpp` (including doge + llama), `src/character.*`, and `src/buddy.*` are updated for the include/type changes
   3. `pio run -e m5stack-sticks3` builds with zero errors
   4. `pio run -e m5stickc-plus` still builds green from the same source (no regression to the working device)
+
 **Plans**: TBD
 
 Plans:
+
 - [ ] 03-01: TBD
 
 ### Phase 4: Haptics → Chimes
+
 **Goal**: Haptic events become audible chimes on the StickS3 via `M5.Speaker` (ES8311), while the StickC Plus keeps its LEDC vibration-motor path, and the settings UI reflects the change.
 **Depends on**: Phase 3
 **Requirements**: HAPT-01, HAPT-02, HAPT-03
 **Success Criteria** (what must be TRUE):
+
   1. On the StickS3 (`#if defined(BOARD_STICKS3)`), the pattern engine (`vibratePatternAmp*`) drives `M5.Speaker` tones, and approve / deny / attention / celebrate / connect each play an audibly distinct, recognisable chime on the speaker
   2. On the StickC Plus the existing LEDC vibration-motor path is unchanged and the motor still buzzes on events
   3. The "vibrate" settings entry is relabelled to "chime"/"haptics", and the UI-beep-vs-event-tone overlap is resolved so cues don't clash
   4. Both `pio run -e m5stack-sticks3` and `pio run -e m5stickc-plus` build green with the board-conditional feedback code in place
+
 **Plans**: TBD
 
 Plans:
+
 - [ ] 04-01: TBD
 
 ## Progress

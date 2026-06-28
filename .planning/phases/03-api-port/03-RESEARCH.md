@@ -262,10 +262,10 @@ Used at `main.cpp:279-280` for light-sleep GPIO wake. They were `M5StickCPlus.h`
 // Button GPIOs (were M5StickCPlus.h macros; M5Unified does not define them).
 #if defined(BOARD_STICKS3)
 #ifndef BUTTON_A_PIN
-#define BUTTON_A_PIN 37   // [ASSUMED] confirm StickS3 BtnA GPIO from PROJECT.md / board docs
+#define BUTTON_A_PIN 11   // StickS3 BtnA (GPIO11) [VERIFIED: M5Unified.cpp board_M5StickS3]
 #endif
 #ifndef BUTTON_B_PIN
-#define BUTTON_B_PIN 39   // [ASSUMED] confirm StickS3 BtnB GPIO
+#define BUTTON_B_PIN 12   // StickS3 BtnB (GPIO12) [VERIFIED: M5Unified.cpp board_M5StickS3]
 #endif
 #else
 #ifndef BUTTON_A_PIN
@@ -276,7 +276,7 @@ Used at `main.cpp:279-280` for light-sleep GPIO wake. They were `M5StickCPlus.h`
 #endif
 #endif
 ```
-StickC Plus pins are **verified** (M5Unified.cpp registers GPIO_NUM_37 for BtnA and GPIO_NUM_39 for BtnB on `board_M5StickCPlus`). StickS3 button GPIOs are `[ASSUMED]` — the light-sleep GPIO-wake is a StickC-Plus power feature; on StickS3 it must at least *compile*, and the correct wake pins should be confirmed from PROJECT.md's StickS3 I/O before relying on button-wake there. **Open question O1.**
+StickC Plus pins are **verified** (M5Unified.cpp registers GPIO_NUM_37 for BtnA and GPIO_NUM_39 for BtnB on `board_M5StickCPlus`). StickS3 button GPIOs are now also **VERIFIED**: `M5Unified.cpp` `case board_t::board_M5StickS3` reads `gpio_in(GPIO_NUM_11)` for BtnA and `gpio_in(GPIO_NUM_12)` for BtnB — i.e. **BtnA=GPIO11, BtnB=GPIO12** (NOT the StickC-Plus 37/39, which are classic-ESP32 ADC pins and wrong for the S3). **Open question O1 — RESOLVED** (see below).
 
 ---
 
@@ -424,7 +424,7 @@ StickS3: if no device available, **clean compile/link is the acceptance** (D-08)
 | # | Claim | Section | Risk if wrong |
 |---|-------|---------|---------------|
 | A1 | `compatRailWake` restore voltage = **3000mV** for LDO2/LDO3 | RF-03/RF-04 | Medium — wrong value = dark/garbled screen after first idle cycle; caught by D-08 hardware check |
-| A2 | StickS3 `BUTTON_A_PIN=37` / `BUTTON_B_PIN=39` | Blocker 2 | Low for compile; Medium for actual StickS3 button-wake — confirm from PROJECT.md (O1) |
+| A2 | StickS3 `BUTTON_A_PIN=11` / `BUTTON_B_PIN=12` | Blocker 2 | **RESOLVED (O1)** — VERIFIED from M5Unified.cpp `board_M5StickS3` button read (GPIO11=BtnA, GPIO12=BtnB); 37/39 were wrong for the S3 |
 | A3 | `M5.Power.getBatteryLevel()` on AXP192 reads sensibly across the range | stats.h note | Low — cosmetic %; voltage fallback exists |
 | A4 | M5GFX provides `MC_DATUM`/`TL_DATUM` legacy names | RF-05 | Low — trivial 2-line compat `#define` if not |
 | A5 | M5Canvas needs explicit `setColorDepth(16)` for the 135×240 sprite | Pitfall 2 | Medium — runtime visual bug only, not a compile blocker |
@@ -432,7 +432,7 @@ StickS3: if no device available, **clean compile/link is the acceptance** (D-08)
 
 ## Open Questions (RESOLVED)
 
-1. **O1 — StickS3 BtnA/BtnB GPIOs for light-sleep wake.** PROJECT.md documents StickS3 I/O (ESP32-S3-PICO-1); the exact button GPIOs were not in the lines read. The light-sleep GPIO-wake path is a StickC-Plus power feature, so on StickS3 it must compile but isn't power-critical for this milestone. **RESOLVED:** use the verified StickC-Plus values as the `#else`, put `[ASSUMED 37/39]` S3 values behind `#if BOARD_STICKS3` (compile-only, plan 03-01 Task 2), and flag for hardware confirmation before any future phase relies on StickS3 button-wake. PROJECT.md confirmed to document no StickS3 button GPIOs, so the assumption is unavoidable from docs.
+1. **O1 — StickS3 BtnA/BtnB GPIOs for light-sleep wake.** PROJECT.md documents StickS3 I/O (ESP32-S3-PICO-1) but not the exact button GPIOs. **RESOLVED (VERIFIED 2026-06-28):** the StickS3 buttons are **BtnA = GPIO11** and **BtnB = GPIO12**. Source: the installed M5Unified board-detection source — `.pio/libdeps/m5stack-sticks3/M5Unified/src/M5Unified.cpp`, `case board_t::board_M5StickS3` (≈line 2849): `btn_rawstate_bits = ((!m5gfx::gpio_in(GPIO_NUM_11)) & 1) | ((!m5gfx::gpio_in(GPIO_NUM_12)) & 1) << 1;` (bit0=BtnA→GPIO11, bit1=BtnB→GPIO12). Cross-checked: M5Stack's official StickS3 Button page (<https://docs.m5stack.com/en/arduino/m5sticks3/button>) states the buttons are handled by M5Unified's `Button_Class` — i.e. the M5Unified GPIO mapping is the canonical source; the docs publish no raw GPIO. The earlier `[ASSUMED 37/39]` was **WRONG** — 37/39 are the classic-ESP32 StickC-Plus button pins and are not the S3's buttons. `BUTTON_A_PIN`/`BUTTON_B_PIN` for the `#if BOARD_STICKS3` branch are now set to 11/12 (plan 03-01 Task 2). Note: upstream PR #48 (`yiduo/claude-desktop-buddy@feat/m5sticks3-port`) does **not** define `BUTTON_*_PIN` or use `gpio_wakeup` at all — it restructured the light-sleep path — so it provided no S3 button-pin value to cross-check against.
 2. **O2 — Keep or drop the StickC-Plus coulomb gauge?** Dropping it (recommended) is the minimal both-board path but changes StickC-Plus battery-% behavior. If the user wants to preserve coulomb accuracy on the StickC Plus, it would require direct AXP192 reg reads via `M5.In_I2C` (more code, board-conditional) — out of scope unless D-08 hardware testing shows the `getBatteryLevel()` reading is unacceptable. **RESOLVED:** drop the coulomb gauge, use `getBatteryLevel()` on both boards (plan 03-03, per D-04); battery-% flagged in the D-08 hardware-smoke checklist (plan 03-05).
 
 ## Environment Availability

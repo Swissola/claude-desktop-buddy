@@ -430,10 +430,10 @@ StickS3: if no device available, **clean compile/link is the acceptance** (D-08)
 | A5 | M5Canvas needs explicit `setColorDepth(16)` for the 135×240 sprite | Pitfall 2 | Medium — runtime visual bug only, not a compile blocker |
 | A6 | Deleting `M5.Beep.update()` (async speaker) causes no missed/cut beeps | D-10 | Low — beeps are short and fire-and-forget |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **O1 — StickS3 BtnA/BtnB GPIOs for light-sleep wake.** PROJECT.md documents StickS3 I/O (ESP32-S3-PICO-1); the exact button GPIOs were not in the lines read. The light-sleep GPIO-wake path is a StickC-Plus power feature, so on StickS3 it must compile but isn't power-critical for this milestone. **Recommendation:** use the verified StickC-Plus values as the `#else`, put `[ASSUMED]` S3 values behind `#if BOARD_STICKS3`, and have the planner confirm the S3 pins from PROJECT.md / the M5 board pin map before relying on StickS3 button-wake.
-2. **O2 — Keep or drop the StickC-Plus coulomb gauge?** Dropping it (recommended) is the minimal both-board path but changes StickC-Plus battery-% behavior. If the user wants to preserve coulomb accuracy on the StickC Plus, it would require direct AXP192 reg reads via `M5.In_I2C` (more code, board-conditional) — out of scope unless D-08 hardware testing shows the `getBatteryLevel()` reading is unacceptable.
+1. **O1 — StickS3 BtnA/BtnB GPIOs for light-sleep wake.** PROJECT.md documents StickS3 I/O (ESP32-S3-PICO-1); the exact button GPIOs were not in the lines read. The light-sleep GPIO-wake path is a StickC-Plus power feature, so on StickS3 it must compile but isn't power-critical for this milestone. **RESOLVED:** use the verified StickC-Plus values as the `#else`, put `[ASSUMED 37/39]` S3 values behind `#if BOARD_STICKS3` (compile-only, plan 03-01 Task 2), and flag for hardware confirmation before any future phase relies on StickS3 button-wake. PROJECT.md confirmed to document no StickS3 button GPIOs, so the assumption is unavoidable from docs.
+2. **O2 — Keep or drop the StickC-Plus coulomb gauge?** Dropping it (recommended) is the minimal both-board path but changes StickC-Plus battery-% behavior. If the user wants to preserve coulomb accuracy on the StickC Plus, it would require direct AXP192 reg reads via `M5.In_I2C` (more code, board-conditional) — out of scope unless D-08 hardware testing shows the `getBatteryLevel()` reading is unacceptable. **RESOLVED:** drop the coulomb gauge, use `getBatteryLevel()` on both boards (plan 03-03, per D-04); battery-% flagged in the D-08 hardware-smoke checklist (plan 03-05).
 
 ## Environment Availability
 

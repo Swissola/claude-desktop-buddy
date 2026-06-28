@@ -39,10 +39,13 @@ struct RTC_DateTypeDef { uint8_t WeekDay, Month, Date; uint16_t Year; };
 // Portable UTC broken-down-time -> epoch (newlib lacks timegm).
 static inline time_t _compatTimegm(const struct tm* t) {
   static const int mdays[] = { 0,31,59,90,120,151,181,212,243,273,304,334 };
+  // Clamp month to [0,11]: a stray tm_mon (e.g. host Month==0 -> -1) must never
+  // index mdays out of bounds (negative C-modulo would be UB). WR-01.
+  int mon = t->tm_mon < 0 ? 0 : (t->tm_mon > 11 ? 11 : t->tm_mon);
   long y = t->tm_year + 1900;
   long days = (y-1970)*365 + (y-1969)/4 - (y-1901)/100 + (y-1601)/400;
-  days += mdays[t->tm_mon % 12];
-  if (t->tm_mon > 1 && ((y%4==0 && y%100!=0) || y%400==0)) days += 1;
+  days += mdays[mon];
+  if (mon > 1 && ((y%4==0 && y%100!=0) || y%400==0)) days += 1;
   days += t->tm_mday - 1;
   return ((time_t)days * 24 + t->tm_hour) * 3600 + t->tm_min * 60 + t->tm_sec;
 }
@@ -105,17 +108,24 @@ static inline int compatChipTempC() { return (int)temperatureRead(); }
 // legacy M5.Axp.GetBatVoltage()/GetVBusVoltage() returned float volts, and the
 // call sites multiply by 1000 to recover mV — so divide by 1000.0f here.
 #if defined(BOARD_STICKS3)
+// Last brightness set via compatScreenBreath, so compatBacklight(true) restores
+// the user's dimmed level instead of forcing full brightness (WR-02). `inline`
+// (not `static inline`) gives one shared instance across translation units.
+inline uint8_t& _compatBrightness() { static uint8_t b = 255; return b; }
 static inline float compatBatVoltage()  { return M5.Power.getBatteryVoltage() / 1000.0f; }
 static inline float compatBatCurrent()  { return (float)M5.Power.getBatteryCurrent(); }
 static inline float compatVBusVoltage() { return M5.Power.getVBUSVoltage() / 1000.0f; } // -1mV if unsupported -> negative volts
 static inline int   compatBatteryPct()  { return M5.Power.getBatteryLevel(); }           // D-04: away from AXP coulomb path
 static inline void  compatScreenBreath(int v) {
-  M5.Display.setBrightness((uint8_t)map(constrain(v, 0, 100), 0, 100, 0, 255));
+  uint8_t b = (uint8_t)map(constrain(v, 0, 100), 0, 100, 0, 255);
+  _compatBrightness() = b;
+  M5.Display.setBrightness(b);
 }
 static inline void  compatBacklight(bool on) {
   // No AXP LDO2 rail on StickS3; emulate via brightness. Off = setBrightness(0)
-  // (reversible by the existing applyBrightness path); avoid M5.Display.sleep().
-  M5.Display.setBrightness(on ? 255 : 0);
+  // (reversible); On = restore last level from compatScreenBreath, not a hardcoded
+  // 255 (WR-02). Avoid M5.Display.sleep() which also blanks panel state.
+  M5.Display.setBrightness(on ? _compatBrightness() : 0);
 }
 static inline bool  compatPowerBtnShort() { return M5.Power.getKeyState() == 2; }         // 0=none,1=long,2=short,3=both
 static inline void  compatPowerOff()      { M5.Power.powerOff(); }

@@ -28,10 +28,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. The dependency list resolves `m5stack/M5Unified @ ^0.2.x` + `M5GFX` (with `AnimatedGIF` and `ArduinoJson` retained) and no longer references the `M5StickCPlus` library
   3. `partitions_8mb.csv` exists (8MB flash, QIO-OPI, USB-CDC-on-boot) and the `m5stack-sticks3` env references it via `board_build.partitions`
   4. `pio run -e m5stack-sticks3` reaches the compile stage on the new toolchain (dependency + partition resolution succeeds; source-level API errors are expected and addressed in Phase 3)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 01-01: TBD
+- [ ] 01-01-PLAN.md — Dual-env platformio.ini on M5Unified + M5GFX with 8MB partitions (BUILD-01/02/03)
 
 ### Phase 2: Compatibility Shim
 **Goal**: A `src/compat.h` shim re-creates the legacy M5StickCPlus names on top of M5Unified/M5GFX so the existing UI and render code compiles against the new libraries without edits.
@@ -82,7 +82,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Build System | 0/TBD | Not started | - |
+| 1. Build System | 0/1 | Not started | - |
 | 2. Compatibility Shim | 0/TBD | Not started | - |
 | 3. API Port | 0/TBD | Not started | - |
 | 4. Haptics → Chimes | 0/TBD | Not started | - |

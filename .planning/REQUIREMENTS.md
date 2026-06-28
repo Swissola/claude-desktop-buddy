@@ -9,11 +9,11 @@ Requirements for this migration. Each maps to a roadmap phase.
 
 ### Build System
 
-- [ ] **BUILD-01**: `platformio.ini` defines a shared `[common]` section plus two envs,
+- [x] **BUILD-01**: `platformio.ini` defines a shared `[common]` section plus two envs,
   `m5stickc-plus` and `m5stack-sticks3`, both building from the same `src/` tree
-- [ ] **BUILD-02**: The board-specific `M5StickCPlus` library is replaced by
+- [x] **BUILD-02**: The board-specific `M5StickCPlus` library is replaced by
   `m5stack/M5Unified` (^0.2.x) + `M5GFX`, keeping `AnimatedGIF` and `ArduinoJson`
-- [ ] **BUILD-03**: `partitions_8mb.csv` (8MB flash, QIO-OPI, USB-CDC-on-boot) is added and
+- [x] **BUILD-03**: `partitions_8mb.csv` (8MB flash, QIO-OPI, USB-CDC-on-boot) is added and
   referenced by the `m5stack-sticks3` env
 
 ### Compatibility Shim
@@ -72,9 +72,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUILD-01 | Phase 1 | Pending |
-| BUILD-02 | Phase 1 | Pending |
-| BUILD-03 | Phase 1 | Pending |
+| BUILD-01 | Phase 1 | Complete |
+| BUILD-02 | Phase 1 | Complete |
+| BUILD-03 | Phase 1 | Complete |
 | SHIM-01 | Phase 2 | Pending |
 | PORT-01 | Phase 3 | Pending |
 | PORT-02 | Phase 3 | Pending |

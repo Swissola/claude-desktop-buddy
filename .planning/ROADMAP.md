@@ -50,7 +50,6 @@ Plans:
   4. The UI/render source files remain unedited — the shim absorbs all name changes
 
 **Plans**: 1 plan
-
 Plans:
 
 - [ ] 02-01-PLAN.md — Create src/compat.h (verbatim PR #48 base + full board-conditional helper set) and prove it compiles standalone under the StickS3 env (SHIM-01)

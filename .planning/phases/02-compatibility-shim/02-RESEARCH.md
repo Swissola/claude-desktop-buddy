@@ -494,22 +494,23 @@ compat.h without M5Unified first; the header's own includes prevent this.
 | A3 | M5Canvas default color depth needs explicit `setColorDepth(16)` for the 135×240 sprite | Pitfall 2 | Medium — runtime visual bug if wrong; not a Phase-2 compile blocker |
 | A4 | `temperatureRead()` is linkable on the espressif32 core version pinned in Phase 1 | Pitfall 4 / D-05 | Low — present on ESP32-S3; D-05 makes it non-blocking |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should compat.h provide the extension power helpers in Phase 2, or only the PR #48 base?**
    - What we know: Criterion 3 only requires the compat.h-only TU to compile. The base alone
      compiles. The fork's `M5.Axp.*` call sites are Phase-3 ports.
    - What's unclear: Whether the planner wants the full `compat*` helper set written now (so
      Phase 3 is pure call-site swaps) or grown error-by-error in Phase 3.
-   - Recommendation: **Write the full helper set in Phase 2** (the mapping is fully specified
+   - **RESOLVED: Write the full helper set in Phase 2** (the mapping is fully specified
      above and the helpers compile standalone), leaving Phase 3 as mechanical call-site edits.
      This honors D-07's "extend as compile errors demand" because we already know the demands
-     from the source inventory.
+     from the source inventory. Adopted by plan 02-01 Task 1.
 
 2. **`compatBacklight(bool)` for `SetLDO2` — brightness-0 vs `M5.Display.sleep()`?**
    - What we know: `SetLDO2(false)` cuts the backlight rail; wake calls `applyBrightness()`.
-   - Recommendation: `setBrightness(0)` for off (simplest, reversible by the existing
+   - **RESOLVED: `setBrightness(0)` for off** (simplest, reversible by the existing
      `applyBrightness()`); avoid `M5.Display.sleep()` which also blanks the panel state.
+     Adopted by plan 02-01 Task 1.
 
 ## Environment Availability
 

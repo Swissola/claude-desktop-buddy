@@ -82,11 +82,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HAPT-01 | Phase 4 | Pending |
 | HAPT-02 | Phase 4 | Pending |
 | HAPT-03 | Phase 4 | Pending |
+| RECON-01 | v2 (deferred) | Deferred |
+| RECON-02 | v2 (deferred) | Deferred |
+| BUZZ-01 | v2 (deferred) | Deferred |
 
 **Coverage:**
 - v1 requirements: 10 total
 - Mapped to phases: 10
 - Unmapped: 0 ✓
+- v2 (deferred, not in this milestone): RECON-01, RECON-02, BUZZ-01
 
 ---
 *Requirements defined: 2026-06-28*

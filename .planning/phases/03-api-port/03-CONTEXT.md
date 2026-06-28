@@ -151,8 +151,9 @@ buddy/character/render code with the unified API + compat helpers, and resolving
 - Event chimes (`M5.Speaker` tone sequences per approve/deny/etc.) → **Phase 4**.
 - StickC-Plus speaker/motor LEDC-channel collision resolution → **Phase 4** (haptics).
 - v2: RECON-01/02 (rebase multi-host-bonding + fix/* onto migrated main), BUZZ-01 (Grove
-  Vibrator Unit on Port.A G9) — separate milestone; see the open question about making Phase 4's
-  haptics path pin-configurable so BUZZ-01 becomes a later config flip with no rework.
+  Vibrator Unit on Port.A G9) — **kept fully deferred** to a separate post-merge milestone
+  (user decision, 2026-06-28). Do NOT fold a BUZZ-01 configurability seam into Phase 4; Phase 4
+  stays scoped to StickC-Plus motor + StickS3 chimes only.
 
 None of the above belongs in Phase 3.
 

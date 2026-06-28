@@ -18,7 +18,7 @@ Requirements for this migration. Each maps to a roadmap phase.
 
 ### Compatibility Shim
 
-- [ ] **SHIM-01**: `src/compat.h` re-creates legacy names on top of M5Unified/M5GFX
+- [x] **SHIM-01**: `src/compat.h` re-creates legacy names on top of M5Unified/M5GFX
   (`TFT_eSprite`→`M5Canvas`, `TFT_eSPI`→`lgfx::LGFXBase`, software RTC,
   `compatOnUsb`/`compatLed`/`compatChipTempC`) so UI/render code is untouched
 
@@ -75,7 +75,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BUILD-01 | Phase 1 | Complete |
 | BUILD-02 | Phase 1 | Complete |
 | BUILD-03 | Phase 1 | Complete |
-| SHIM-01 | Phase 2 | Pending |
+| SHIM-01 | Phase 2 | Complete |
 | PORT-01 | Phase 3 | Pending |
 | PORT-02 | Phase 3 | Pending |
 | PORT-03 | Phase 3 | Pending |

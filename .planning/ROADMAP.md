@@ -14,7 +14,7 @@ This milestone takes the fork's M5StickC Plus-only firmware and makes it build a
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Build System** - Dual-env `platformio.ini` on M5Unified + M5GFX with 8MB partitions (completed 2026-06-28)
-- [ ] **Phase 2: Compatibility Shim** - `src/compat.h` re-creates legacy names so UI code stays untouched
+- [x] **Phase 2: Compatibility Shim** - `src/compat.h` re-creates legacy names so UI code stays untouched (completed 2026-06-28)
 - [ ] **Phase 3: API Port** - Port `main.cpp` + buddy/character code to the unified API; both envs build clean
 - [ ] **Phase 4: Haptics → Chimes** - Board-conditional ES8311 chimes on StickS3, LEDC motor kept on StickC Plus
 
@@ -52,7 +52,7 @@ Plans:
 **Plans**: 1 plan
 Plans:
 
-- [ ] 02-01-PLAN.md — Create src/compat.h (verbatim PR #48 base + full board-conditional helper set) and prove it compiles standalone under the StickS3 env (SHIM-01)
+- [x] 02-01-PLAN.md — Create src/compat.h (verbatim PR #48 base + full board-conditional helper set) and prove it compiles standalone under the StickS3 env (SHIM-01)
 
 ### Phase 3: API Port
 
@@ -98,6 +98,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Build System | 1/1 | Complete    | 2026-06-28 |
-| 2. Compatibility Shim | 0/1 | Not started | - |
+| 2. Compatibility Shim | 1/1 | Complete   | 2026-06-28 |
 | 3. API Port | 0/TBD | Not started | - |
 | 4. Haptics → Chimes | 0/TBD | Not started | - |

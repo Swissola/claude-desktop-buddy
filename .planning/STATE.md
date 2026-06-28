@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-last_updated: "2026-06-28T18:50:57.141Z"
-last_activity: 2026-06-28 -- Phase 02 planning complete
+status: verifying
+last_updated: "2026-06-28T19:00:27.424Z"
+last_activity: 2026-06-28
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 2
-  completed_plans: 1
-  percent: 25
+  completed_plans: 2
+  percent: 50
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-28)
 
 **Core value:** The buddy runs on the M5StickS3 with chime feedback, without breaking the M5StickC Plus build — one codebase, two boards.
-**Current focus:** Phase 2 — compatibility shim
+**Current focus:** Phase 02 — compatibility-shim
 
 ## Current Position
 
-Phase: 2
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-28 -- Phase 02 planning complete
+Phase: 02 (compatibility-shim) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-06-28
 
 Progress: [██████████] 100%
 
@@ -52,6 +52,7 @@ Progress: [██████████] 100%
 
 *Updated after each plan completion*
 | Phase 01 P01 | 6 | 3 tasks | 2 files |
+| Phase 02 P01 | 14 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,7 @@ Recent decisions affecting current work:
 - Drop the emotion system (user dislikes the visuals)
 - Coarse granularity, 4 phases, research skipped (technical groundwork already done in scoping conversation)
 - [Phase ?]: Used board=esp32-s3-devkitc-1 + memory_type=qio_opi + flash_size=8MB for the StickS3 N8R8 (no official M5StickS3 board id)
+- [Phase ?]: Phase 2: wrote the full compat* helper set now so Phase 3 is mechanical call-site swaps; M5.Axp.* confined to the non-StickS3 #else branch
 
 ### Pending Todos
 
@@ -87,6 +89,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-28T18:32:14.860Z
+Last session: 2026-06-28T19:00:07.340Z
 Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-compatibility-shim/02-CONTEXT.md
+Resume file: None

@@ -28,12 +28,9 @@ const int CX = W / 2;
 const int CY_BASE = 120;
 const int LED_PIN      = 10;     // red LED, active-low
 const int VIBRATE_PIN  = 26;     // Vibration HAT ERM motor, PWM
-// LEDC channel 2 — NOT 0: M5.Beep (Speaker) uses TONE_PIN_CHANNEL 0, so sharing
-// it meant every beep reconfigured the channel and killed the motor pattern
-// mid-buzz. Since approve/deny/attention all beep AND vibrate simultaneously,
-// the motor only ever got its first pulse before the beep stomped channel 0 —
-// the root cause of months of "haptics feel like one buzz then nothing".
-const int VIBRATE_CH   = 2;      // LEDC channel (separate from beep's ch0)
+// VIBRATE_CH was the old LEDC channel number (core ≤2.x API). Now unused —
+// core 3.x ledcAttach/ledcWrite are pin-based. Left here as a reference.
+const int VIBRATE_CH   = 2;      // unused (core-3.x is pin-based — see ledcAttach)
 
 // Haptic patterns: on/off durations in ms (even index = motor ON, odd = OFF),
 // zero-terminated. The motor has its own LEDC channel (VIBRATE_CH, separate from
@@ -189,7 +186,7 @@ static bool isFaceDown() {
   return az < -0.7f && fabsf(ax) < 0.4f && fabsf(ay) < 0.4f;
 }
 
-static void applyBrightness() { M5.Axp.ScreenBreath(20 + brightLevel * 20); }
+static void applyBrightness() { compatScreenBreath(20 + brightLevel * 20); }
 
 // Defined below (near the light-sleep helpers); forward-declared so wake() can
 // restore the rails/IMU when leaving the deep idle state.
@@ -205,7 +202,7 @@ static void wake() {
     if (bleIdleSleep) {
       idlePowerRestore();
     } else {
-      M5.Axp.SetLDO2(true);
+      compatBacklight(true);
     }
     applyBrightness();
     screenOff = false;
@@ -260,7 +257,7 @@ static void imuSleep() {
 // cleanly on wake. If reconnect proves flaky in testing, the fallback is a
 // reboot-on-wake (guaranteed fresh advertising).
 static void idlePowerDown() {
-  M5.Axp.SetSleep();   // reg 0x12 &= 0xA1 — disables LDO2/LDO3, keeps DCDC1+LDO1
+  compatRailSleep();   // disables LDO2 (backlight) + LDO3 (panel logic), keeps DCDC1+LDO1
   imuSleep();
   bleStopAdvertising();   // silence the radio — advertising is a continuous
                           // idle drain and nothing is listening while asleep.
@@ -270,8 +267,8 @@ static void idlePowerRestore() {
   bleStartAdvertising();                  // bring the radio back FIRST so the
                                           // daemon can find us while the screen
                                           // restores
-  M5.Axp.WakeUpDisplayAfterLightSleep();  // re-enable Ext/LDO3/LDO2/DCDC1
-  M5.Imu.Init();                          // wake + re-init the IMU
+  compatRailWake();   // re-enable LDO3/LDO2; caller re-applies brightness [ASSUMED A1: 3000mV]
+  M5.Imu.begin();     // wake + re-init the IMU
 }
 
 static bool lightSleepUntilEvent() {
@@ -291,7 +288,7 @@ static bool lightSleepUntilEvent() {
 }
 
 static void beep(uint16_t freq, uint16_t dur) {
-  if (settings().sound) M5.Beep.tone(freq, dur);
+  if (settings().sound) compatBeep(freq, dur);
 }
 
 static void sendCmd(const char* json) {
@@ -526,7 +523,7 @@ static void drawReset() {
 void menuConfirm() {
   switch (menuSel) {
     case 0: settingsOpen = true; menuOpen = false; settingsSel = 0; break;
-    case 1: M5.Axp.PowerOff(); break;
+    case 1: compatPowerOff(); break;
     case 2:
     case 3:
       menuOpen = false;
@@ -602,7 +599,7 @@ static void pushFrame() {
 // AXP GetBtnPress() is CONSUMED on read, so it must be read exactly once per
 // loop; powerPollLatch caches that single read for all role accessors below.
 static bool powerPollLatch = false;
-static void buttonsPoll() { powerPollLatch = (M5.Axp.GetBtnPress() == 0x02); }
+static void buttonsPoll() { powerPollLatch = compatPowerBtnShort(); }
 
 // Logical "power" short-press (wake / screen-off toggle). Physically the power
 // button on left wrist, BtnB on right wrist.
@@ -625,9 +622,9 @@ static bool            _onUsb       = false;
 static void clockRefreshRtc() {
   if (millis() - _clkLastRead < 1000) return;
   _clkLastRead = millis();
-  _onUsb = M5.Axp.GetVBusVoltage() > 4.0f;
-  M5.Rtc.GetTime(&_clkTm);
-  M5.Rtc.GetDate(&_clkDt);
+  _onUsb = compatVBusVoltage() > 4.0f;
+  compatRtcGetTime(&_clkTm);
+  compatRtcGetDate(&_clkDt);
 }
 
 static void clockUpdateOrient() {
@@ -876,9 +873,9 @@ void drawInfo() {
   } else if (infoPage == 3) {
     _infoHeader(p, y, "DEVICE", infoPage);
 
-    int vBat_mV = (int)(M5.Axp.GetBatVoltage() * 1000);
-    int iBat_mA = (int)M5.Axp.GetBatCurrent();
-    int vBus_mV = (int)(M5.Axp.GetVBusVoltage() * 1000);
+    int vBat_mV = (int)(compatBatVoltage() * 1000);
+    int iBat_mA = (int)compatBatCurrent();
+    int vBus_mV = (int)(compatVBusVoltage() * 1000);
     int pct = batteryPct();   // coulomb-counter gauge (voltage fallback until calibrated)
     bool usb = vBus_mV > 4000;
     bool charging = usb && iBat_mA > 1;
@@ -909,7 +906,7 @@ void drawInfo() {
     ln("  heap     %uKB", ESP.getFreeHeap() / 1024);
     ln("  bright   %u/4", brightLevel);
     ln("  bt       %s", settings().bt ? (dataBtActive() ? "linked" : "on") : "off");
-    ln("  temp     %dC", (int)M5.Axp.GetTempInAXP192());
+    ln("  temp     %dC", compatChipTempC());
 
   } else if (infoPage == 4) {
     _infoHeader(p, y, "BLUETOOTH", infoPage);
@@ -1288,7 +1285,7 @@ void loop() {
     bool btnWoke = lightSleepUntilEvent();
     M5.update();
     if (!btnWoke && !M5.BtnA.wasPressed() && !M5.BtnB.wasPressed()
-        && M5.Axp.GetBtnPress() != 0x02) {
+        && !compatPowerBtnShort()) {
       return;   // timer wake — nothing to do, straight back to sleep
     }
     wake();     // a button woke us: restore and run the loop normally
@@ -1318,9 +1315,9 @@ void loop() {
 
   // LED: pulse on attention, otherwise off
   if (activeState == P_ATTENTION && settings().led) {
-    digitalWrite(LED_PIN, (now / 400) % 2 ? LOW : HIGH);
+    compatLedSet((now / 400) % 2);
   } else {
-    digitalWrite(LED_PIN, HIGH);
+    compatLedSet(false);
   }
 
   // Connection haptic: buzz the "linked up" cue when the daemon link comes up.
@@ -1432,7 +1429,7 @@ void loop() {
     if (screenOff) {
       wake();
     } else {
-      M5.Axp.SetLDO2(false);
+      compatBacklight(false);
       screenOff = true;
     }
   }
@@ -1622,7 +1619,7 @@ void loop() {
   if (!napping && faceDownFrames >= 15) {
     napping = true;
     napStartMs = now;
-    M5.Axp.ScreenBreath(8);
+    compatScreenBreath(8);
     dimmed = true;
     setCpuFrequencyMhz(40);
   } else if (napping && faceDownFrames <= -8) {
@@ -1639,7 +1636,7 @@ void loop() {
   // connected to a PC. Wall charger/power bank (USB power, no data) times out normally.
   if (!screenOff && !inPrompt && !(_onUsb && dataConnected())
       && millis() - lastInteractMs > SCREEN_OFF_MS) {
-    M5.Axp.SetLDO2(false);
+    compatBacklight(false);
     screenOff = true;
     screenOffSinceMs = millis();
     setCpuFrequencyMhz(40);
@@ -1674,7 +1671,7 @@ void loop() {
       delay(50);
       M5.update();
       if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed()) break;
-      if (M5.Axp.GetBtnPress() == 0x02) { wake(); break; }
+      if (compatPowerBtnShort()) { wake(); break; }
     }
   } else {
     delay(16);

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-29T07:20:45.338Z"
+last_updated: "2026-06-29T07:36:00Z"
 last_activity: 2026-06-29
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 7
   completed_plans: 6
-  percent: 50
+  percent: 86
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-28)
 
 Phase: 03 (api-port) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Paused at checkpoint:human-verify (Task 2 — D-08 hardware smoke test)
 Last activity: 2026-06-29
 
 Progress: [█████████░] 86%
@@ -56,6 +56,7 @@ Progress: [█████████░] 86%
 | Phase 02 P01 | 14 | 2 tasks | 1 files |
 | Phase 03 P01 | 3 | 2 tasks | 1 files |
 | Phase 03 P04 | 12 | 2 tasks | 24 files |
+| Phase 03 P05 Task1 | 13 | 4 fixes | 4 files | (paused at Task 2 checkpoint)
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - Coarse granularity, 4 phases, research skipped (technical groundwork already done in scoping conversation)
 - [Phase ?]: Used board=esp32-s3-devkitc-1 + memory_type=qio_opi + flash_size=8MB for the StickS3 N8R8 (no official M5StickS3 board id)
 - [Phase ?]: Phase 2: wrote the full compat* helper set now so Phase 3 is mechanical call-site swaps; M5.Axp.* confined to the non-StickS3 #else branch
+- [03-05]: board_build.variant = m5stack_stickc_plus required for pioarduino 55.03.39 (arduino-esp32 3.3.9 renamed the variant)
+- [03-05]: ble_bridge.cpp needs CONFIG_BLUEDROID_ENABLED/CONFIG_NIMBLE_ENABLED dual-path (ESP32=Bluedroid, ESP32-S3=NimBLE in arduino-esp32 3.x)
 
 ### Pending Todos
 
@@ -92,6 +95,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-29T07:20:45.333Z
-Stopped at: Phase 3 context gathered
-Resume file: None
+Last session: 2026-06-29T07:36:00Z
+Stopped at: Phase 03-05 Task 2 (checkpoint:human-verify — D-08 StickC Plus hardware smoke test)
+Resume signal: User runs "approved" or "defer" to proceed with plan 03-05 completion
+Resume file: .planning/phases/03-api-port/03-05-PLAN.md (Task 2 checkpoint)

@@ -233,21 +233,18 @@ bool     responseSent = false;
 // power-button-off check is delayed — holding power-off registers within 60s.
 static const uint32_t LIGHT_SLEEP_TIMER_US = 60UL * 1000UL * 1000UL;
 
-// MPU6886 IMU sits on a rail that stays powered during light sleep and draws
-// ~1-3mA running. Put it in its low-power sleep mode (PWR_MGMT_1 bit6) before
-// idle-sleeping, and re-init on wake. Direct register write — the M5 lib
-// doesn't expose a sleep call. Addr 0x68, reg 0x6B, SLEEP bit = 0x40.
+// IMU sits on a rail that stays powered during light sleep and draws ~1-3mA
+// running. Put it in its low-power sleep mode before idle-sleeping; re-init
+// on wake via M5.Imu.begin() in idlePowerRestore(). M5.Imu.sleep() handles
+// both MPU6886 (StickC Plus) and BMI270 (StickS3) — board-agnostic API.
 static void imuSleep() {
-  Wire1.beginTransmission(0x68);
-  Wire1.write(0x6B);
-  Wire1.write(0x40);   // PWR_MGMT_1: SLEEP=1
-  Wire1.endTransmission();
+  M5.Imu.sleep();
 }
 
 // Enter the low-power idle state: cut the LCD rails (LDO2 backlight + LDO3 panel
-// logic) via the AXP's SetSleep (keeps DCDC1=ESP32 + LDO1=RTC), sleep the IMU,
-// and stop BLE advertising. Called once when entering bleIdleSleep. Restored by
-// idlePowerRestore() from wake().
+// logic) via compatRailSleep (keeps DCDC1=ESP32 + LDO1=RTC), sleep the IMU via
+// M5.Imu.sleep(), and stop BLE advertising. Called once when entering bleIdleSleep.
+// Restored by idlePowerRestore() from wake().
 //
 // Advertising-off is the suspected big idle win: Fix #1/#2 (cheap timer wake)
 // barely moved drain (~12.4%/hr), proving the sink is CONTINUOUS, not the

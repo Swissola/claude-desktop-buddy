@@ -1,4 +1,4 @@
-#include <M5StickCPlus.h>
+#include "compat.h"
 #include <LittleFS.h>
 #include <stdarg.h>
 #include <esp_sleep.h>      // light sleep for the disconnected-idle power state
@@ -100,7 +100,7 @@ static void vibrateTick(uint32_t now) {
   if (!_vibPat) return;
   if ((int32_t)(now - _vibNext) < 0) return;
   if (_vibPat[_vibStep] == 0) {
-    ledcWrite(VIBRATE_CH, 0);
+    ledcWrite(VIBRATE_PIN, 0);
     _vibPat = nullptr;
     _vibAmpArr = nullptr;
     return;
@@ -109,7 +109,7 @@ static void vibrateTick(uint32_t now) {
   if (_vibStep % 2 == 0) {  // ON step
     amp = _vibAmpArr ? _vibAmpArr[_vibStep / 2] : _vibAmp;
   }
-  ledcWrite(VIBRATE_CH, amp);
+  ledcWrite(VIBRATE_PIN, amp);
   _vibNext = now + _vibPat[_vibStep++];
 }
 
@@ -1218,16 +1218,17 @@ void drawHUD() {
 }
 
 void setup() {
-  M5.begin();
+  auto cfg = M5.config();
+  cfg.internal_imu = true;   // IMU on (replaces M5.Imu.Init())
+  cfg.internal_spk = true;   // D-09: enable speaker now, idle until used
+  cfg.internal_mic = false;  // unused; don't claim mic resources
+  cfg.clear_display = true;
+  M5.begin(cfg);
   M5.Lcd.setRotation(0);
-  M5.Imu.Init();
-  M5.Beep.begin();
   startBt();
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);   // off
-  ledcSetup(VIBRATE_CH, 500, 8); // 500 Hz, 8-bit resolution
-  ledcAttachPin(VIBRATE_PIN, VIBRATE_CH);
-  ledcWrite(VIBRATE_CH, 0);      // off
+  compatLedInit();            // replaces pinMode(LED_PIN,..)+digitalWrite(LED_PIN,HIGH)
+  ledcAttach(VIBRATE_PIN, 500, 8);  // core-3.x pin-based API (500 Hz, 8-bit resolution)
+  ledcWrite(VIBRATE_PIN, 0);        // off
   lastInteractMs = millis();
   statsLoad();
   settingsLoad();
@@ -1294,7 +1295,6 @@ void loop() {
   }
 
   bleService();    // crash-safe deferred advertising restart (Bug A)
-  M5.Beep.update();
   t++;
   uint32_t now = millis();
 

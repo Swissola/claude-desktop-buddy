@@ -74,7 +74,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 03-02-PLAN.md — Port main.cpp: include swap + M5.begin(cfg) (D-09) + core-3.x LEDC migration + all M5.Axp/M5.Rtc/M5.Beep swaps + idle-sleep path (PORT-01)
-- [ ] 03-03-PLAN.md — Port stats.h/xfer.h/data.h: power-helper swaps + coulomb-gauge drop (O2) + compatRtcSet time-seed (PORT-02)
+- [x] 03-03-PLAN.md — Port stats.h/xfer.h/data.h: power-helper swaps + coulomb-gauge drop (O2) + compatRtcSet time-seed (PORT-02)
 - [ ] 03-04-PLAN.md — Fix TFT_eSPI forward-decl conflicts + swap M5StickCPlus.h include across buddy/character + all 20 buddies (PORT-02)
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -108,5 +108,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Build System | 1/1 | Complete    | 2026-06-28 |
 | 2. Compatibility Shim | 1/1 | Complete    | 2026-06-28 |
-| 3. API Port | 2/5 | In Progress|  |
+| 3. API Port | 3/5 | In Progress|  |
 | 4. Haptics → Chimes | 0/TBD | Not started | - |

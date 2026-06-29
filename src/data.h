@@ -131,7 +131,15 @@ struct _LineBuf {
   char buf[N];
   uint16_t len = 0;
   void feed(Stream& s, TamaState* out) {
-    while (s.available()) {
+    // NOTE: `> 0`, not truthy. Stream::available() returns a signed int and can
+    // return -1 to mean "not ready / error". On the StickS3, Serial is HWCDC
+    // (USB-Serial/JTAG): when its rx_queue is uninitialised (the app never calls
+    // Serial.begin(); the link is BLE, not USB-CDC) HWCDC::available() returns
+    // -1, and `while (s.available())` treated -1 as truthy -> read() also -1 ->
+    // c=0xFF -> the buffer fills then the loop spins forever, hanging loop()'s
+    // first iteration so the buddy never renders (frozen on the splash). The
+    // StickC Plus uses UART0 (available() never -1) so it never hit this.
+    while (s.available() > 0) {
       char c = s.read();
       if (c == '\n' || c == '\r') {
         if (len > 0) { buf[len]=0; if (buf[0]=='{') _applyJson(buf, out); len=0; }

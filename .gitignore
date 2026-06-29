@@ -2,3 +2,8 @@
 .vscode/
 .DS_Store
 data/
+
+# pioarduino / ESP-IDF build artifacts (generated from custom_sdkconfig in platformio.ini)
+sdkconfig.*
+managed_components/
+.dummy/

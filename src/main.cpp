@@ -575,15 +575,22 @@ static uint8_t physRotation(uint8_t orient) { return orient == 0 ? portraitRot()
 // via pushRotated (pivot set to screen centre at createSprite). Left wrist =
 // the cheap straight blit.
 static void pushFrame() {
+  // Push to &M5.Display explicitly rather than the sprite's cached _parent.
+  // `spr` is a global constructed as TFT_eSprite(&M5.Lcd) at static-init time,
+  // before the M5Unified library global `M5` binds its `M5GFX& Lcd = Display`
+  // reference — so the captured _parent is NULL (static-init-order fiasco). The
+  // null _parent crashed pushSprite/pushRotated (deref null+0x74, LoadProhibited)
+  // the first time the StickS3 ran far enough to render. Passing the live display
+  // here sidesteps the stale pointer. See debug/sticks3-bootloop.
   if (settings().rightWrist) {
     // pushRotated places the sprite's pivot onto the LCD's pivot. Set BOTH to
     // the screen centre (LCD at rotation 0 = 135x240) so the 180° frame lands
     // centred, not offset. (The sprite pivot is also set at createSprite.)
-    M5.Lcd.setRotation(0);
-    M5.Lcd.setPivot(W / 2.0f, H / 2.0f);
-    spr.pushRotated(180);
+    M5.Display.setRotation(0);
+    M5.Display.setPivot(W / 2.0f, H / 2.0f);
+    spr.pushRotated(&M5.Display, 180);
   } else {
-    spr.pushSprite(0, 0);
+    spr.pushSprite(&M5.Display, 0, 0);
   }
 }
 
@@ -1632,7 +1639,21 @@ void loop() {
   // so now - lastInteractMs underflows when a button is held → flicker.
   // No auto-off on USB power with data — clock face wants to stay visible when
   // connected to a PC. Wall charger/power bank (USB power, no data) times out normally.
-  if (!screenOff && !inPrompt && !(_onUsb && dataConnected())
+  //
+  // StickS3 is a USB-powered DESKTOP buddy: it sits plugged into the desk, so it
+  // stays awake on USB power ALONE (no daemon-data requirement). Without this, a
+  // daemon-less first boot would render the buddy, then blank at SCREEN_OFF_MS
+  // (~15s) because dataConnected() is false until the bridge sends data — looking
+  // like "the buddy doesn't render." The BLE idle-sleep path already requires
+  // !_onUsb, so it never runs on USB regardless; keeping the screen on while
+  // powered is consistent. StickC Plus (portable/battery) keeps the original
+  // _onUsb && dataConnected() power-saving behavior.
+#if defined(BOARD_STICKS3)
+  const bool keepAwakeOnUsb = _onUsb;
+#else
+  const bool keepAwakeOnUsb = _onUsb && dataConnected();
+#endif
+  if (!screenOff && !inPrompt && !keepAwakeOnUsb
       && millis() - lastInteractMs > SCREEN_OFF_MS) {
     compatBacklight(false);
     screenOff = true;

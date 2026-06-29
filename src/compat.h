@@ -140,3 +140,41 @@ static inline void compatRailWake() {
   M5.Power.Axp192.setLDO2(3000);  // restore backlight rail; caller re-applies brightness [ASSUMED A1 — confirm on hardware]
 }
 #endif
+
+// --- UI beep (D-10): M5.Beep -> M5.Speaker ---
+// M5Unified has no M5.Beep. Speaker must be enabled at M5.begin (D-09).
+// Works on both boards (StickC Plus buzzer + StickS3 ES8311/AW8737).
+// M5.Speaker.tone signature [VERIFIED: Speaker_Class.hpp:165]:
+//   bool tone(float frequency, uint32_t duration = UINT32_MAX, ...)
+static inline void compatBeep(uint16_t freq, uint16_t dur) {
+  M5.Speaker.tone((float)freq, (uint32_t)dur);
+}
+
+// --- Button GPIOs (were M5StickCPlus.h macros; M5Unified does not define them) ---
+// Used by main.cpp for light-sleep GPIO wake (main.cpp:279-280).
+#if defined(BOARD_STICKS3)
+#ifndef BUTTON_A_PIN
+#define BUTTON_A_PIN 11   // StickS3 BtnA (GPIO11) [VERIFIED O1-RESOLVED: M5Unified.cpp board_M5StickS3 gpio_in(GPIO_NUM_11)]
+#endif
+#ifndef BUTTON_B_PIN
+#define BUTTON_B_PIN 12   // StickS3 BtnB (GPIO12) [VERIFIED O1-RESOLVED: M5Unified.cpp board_M5StickS3 gpio_in(GPIO_NUM_12)]
+#endif
+#else
+#ifndef BUTTON_A_PIN
+#define BUTTON_A_PIN 37   // StickC Plus BtnA (GPIO37) [VERIFIED: M5Unified.cpp GPIO_NUM_37]
+#endif
+#ifndef BUTTON_B_PIN
+#define BUTTON_B_PIN 39   // StickC Plus BtnB (GPIO39) [VERIFIED: M5Unified.cpp GPIO_NUM_39]
+#endif
+#endif
+
+// --- Text-datum insurance (RF-05) ---
+// M5GFX provides these via lgfx compatibility enum [MEDIUM confidence: LGFXBase.hpp].
+// Pre-empt undeclared-identifier errors in Wave-3 build (MC_DATUM, TL_DATUM at
+// main.cpp:700,710,728,733,1253,1267). These are no-ops if already defined by M5GFX.
+#ifndef MC_DATUM
+#define MC_DATUM middle_center
+#endif
+#ifndef TL_DATUM
+#define TL_DATUM top_left
+#endif

@@ -69,7 +69,7 @@ Plans:
 **Plans**: 5 plansPlans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Amend compat.h: board-agnostic M5.Power power block (RF-04) + rail-cut idle-sleep (RF-03/D-08) + compatBeep (D-10) + button-pin macros (PORT-01/03)
+- [x] 03-01-PLAN.md — Amend compat.h: board-agnostic M5.Power power block (RF-04) + rail-cut idle-sleep (RF-03/D-08) + compatBeep (D-10) + button-pin macros (PORT-01/03)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -108,5 +108,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Build System | 1/1 | Complete    | 2026-06-28 |
 | 2. Compatibility Shim | 1/1 | Complete    | 2026-06-28 |
-| 3. API Port | 0/5 | Not started | - |
+| 3. API Port | 1/5 | In Progress|  |
 | 4. Haptics → Chimes | 0/TBD | Not started | - |

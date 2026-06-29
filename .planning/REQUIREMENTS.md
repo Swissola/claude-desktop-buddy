@@ -24,12 +24,12 @@ Requirements for this migration. Each maps to a roadmap phase.
 
 ### API Port
 
-- [ ] **PORT-01**: `src/main.cpp` includes `compat.h` instead of `M5StickCPlus.h` and uses the
+- [x] **PORT-01**: `src/main.cpp` includes `compat.h` instead of `M5StickCPlus.h` and uses the
   unified APIs (`M5.Power`, `compatRtc*`, `compatLed*`, `compatChipTempC`) in place of
   `M5.Axp` / `M5.Rtc` / direct LED / AXP-temp calls
 - [ ] **PORT-02**: `src/buddies/*.cpp` (incl. doge + llama), `src/character.*`, `src/buddy.*`
   are updated for the include/type changes so both envs compile cleanly
-- [ ] **PORT-03**: Both `pio run -e m5stickc-plus` and `pio run -e m5stack-sticks3` build with
+- [x] **PORT-03**: Both `pio run -e m5stickc-plus` and `pio run -e m5stack-sticks3` build with
   zero errors from the identical source
 
 ### Haptics → Chimes
@@ -76,9 +76,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BUILD-02 | Phase 1 | Complete |
 | BUILD-03 | Phase 1 | Complete |
 | SHIM-01 | Phase 2 | Complete |
-| PORT-01 | Phase 3 | Pending |
+| PORT-01 | Phase 3 | Complete |
 | PORT-02 | Phase 3 | Pending |
-| PORT-03 | Phase 3 | Pending |
+| PORT-03 | Phase 3 | Complete |
 | HAPT-01 | Phase 4 | Pending |
 | HAPT-02 | Phase 4 | Pending |
 | HAPT-03 | Phase 4 | Pending |

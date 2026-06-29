@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <esp_sleep.h>      // light sleep for the disconnected-idle power state
 #include <driver/gpio.h>    // gpio_wakeup_enable for button wake from light sleep
+#include <esp_mac.h>        // esp_read_mac / ESP_MAC_BT (arduino-esp32 3.x moved from esp_system.h)
 #include "ble_bridge.h"
 #include "data.h"
 #include "buddy.h"

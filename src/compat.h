@@ -101,48 +101,42 @@ static inline void compatLedSet(bool on) {
 // ESP32 (StickC Plus) though it is less accurate there. Accuracy is out of scope.
 static inline int compatChipTempC() { return (int)temperatureRead(); }
 
-// --- Power / battery / brightness helpers (board-conditional) ---
-// D-03: map AXP calls with a real M5Unified equivalent onto M5.Power / M5.Display.
-// D-04: stub AXP-only calls (coulomb, rail sleep/wake) to safe no-ops on StickS3.
+// --- Power / battery / brightness (RF-04) ---
+// Phase 1 removed M5StickCPlus; M5.Axp no longer exists on EITHER board.
+// M5.Power wraps the AXP192 (StickC Plus) and the S3 gauge, so these helpers
+// are board-AGNOSTIC. Only rail-cut sleep + the onboard LED stay board-specific.
 // Pitfall 3: M5.Power.getBatteryVoltage()/getVBUSVoltage() return int mV; the
-// legacy M5.Axp.GetBatVoltage()/GetVBusVoltage() returned float volts, and the
-// call sites multiply by 1000 to recover mV — so divide by 1000.0f here.
-#if defined(BOARD_STICKS3)
-// Last brightness set via compatScreenBreath, so compatBacklight(true) restores
-// the user's dimmed level instead of forcing full brightness (WR-02). `inline`
-// (not `static inline`) gives one shared instance across translation units.
+// legacy call sites multiply by 1000 to recover mV — so divide by 1000.0f here.
 inline uint8_t& _compatBrightness() { static uint8_t b = 255; return b; }
-static inline float compatBatVoltage()  { return M5.Power.getBatteryVoltage() / 1000.0f; }
-static inline float compatBatCurrent()  { return (float)M5.Power.getBatteryCurrent(); }
-static inline float compatVBusVoltage() { return M5.Power.getVBUSVoltage() / 1000.0f; } // -1mV if unsupported -> negative volts
-static inline int   compatBatteryPct()  { return M5.Power.getBatteryLevel(); }           // D-04: away from AXP coulomb path
+
+static inline float compatBatVoltage()  { return M5.Power.getBatteryVoltage() / 1000.0f; } // mV->V
+static inline float compatBatCurrent()  { return (float)M5.Power.getBatteryCurrent(); }     // mA
+static inline float compatVBusVoltage() { return M5.Power.getVBUSVoltage() / 1000.0f; }     // mV->V (-1mV->neg)
+static inline int   compatBatteryPct()  { return M5.Power.getBatteryLevel(); }              // 0..100
 static inline void  compatScreenBreath(int v) {
-  uint8_t b = (uint8_t)map(constrain(v, 0, 100), 0, 100, 0, 255);
+  uint8_t b = (uint8_t)map(constrain(v,0,100),0,100,0,255);
   _compatBrightness() = b;
   M5.Display.setBrightness(b);
 }
-static inline void  compatBacklight(bool on) {
-  // No AXP LDO2 rail on StickS3; emulate via brightness. Off = setBrightness(0)
-  // (reversible); On = restore last level from compatScreenBreath, not a hardcoded
-  // 255 (WR-02). Avoid M5.Display.sleep() which also blanks panel state.
-  M5.Display.setBrightness(on ? _compatBrightness() : 0);
-}
-static inline bool  compatPowerBtnShort() { return M5.Power.getKeyState() == 2; }         // 0=none,1=long,2=short,3=both
+static inline void  compatBacklight(bool on) { M5.Display.setBrightness(on ? _compatBrightness() : 0); }
+static inline bool  compatPowerBtnShort() { return M5.Power.getKeyState() == 2; }
 static inline void  compatPowerOff()      { M5.Power.powerOff(); }
-// D-04 safe stubs (no coulomb counter / no AXP rails on StickS3)
-static inline void  compatEnableCoulomb() {}
-static inline void  compatRailSleep()     {}
-static inline void  compatRailWake()      {}
+static inline void  compatEnableCoulomb() {}   // M5Unified exposes no coulomb counter (D-04)
+
+// --- Idle-sleep rail cut (RF-03 / D-08) — genuinely board-specific ---
+#if defined(BOARD_STICKS3)
+static inline void compatRailSleep() {}        // no AXP; backlight handled by compatBacklight
+static inline void compatRailWake()  {}
 #else
-static inline float compatBatVoltage()  { return M5.Axp.GetBatVoltage(); }
-static inline float compatBatCurrent()  { return M5.Axp.GetBatCurrent(); }
-static inline float compatVBusVoltage() { return M5.Axp.GetVBusVoltage(); }
-static inline int   compatBatteryPct()  { return M5.Power.getBatteryLevel(); } // keep off the coulomb path here; compiles on both
-static inline void  compatScreenBreath(int v) { M5.Axp.ScreenBreath(v); }
-static inline void  compatBacklight(bool on)  { M5.Axp.SetLDO2(on); }
-static inline bool  compatPowerBtnShort() { return M5.Axp.GetBtnPress() == 0x02; }
-static inline void  compatPowerOff()      { M5.Axp.PowerOff(); }
-static inline void  compatEnableCoulomb() { M5.Axp.EnableCoulombcounter(); }
-static inline void  compatRailSleep()     { M5.Axp.SetSleep(); }
-static inline void  compatRailWake()      { M5.Axp.WakeUpDisplayAfterLightSleep(); }
+// Replicate the old M5.Axp.SetSleep(): drop LDO2 (backlight) + LDO3 (panel
+// logic), keep DCDC1=ESP32 + LDO1=RTC. setLDOx(0) clears the reg-0x12 enable
+// bit (verified). M5.Power.Axp192 only compiles on classic-ESP32 (this branch).
+static inline void compatRailSleep() {
+  M5.Power.Axp192.setLDO3(0);   // panel logic off
+  M5.Power.Axp192.setLDO2(0);   // backlight rail off
+}
+static inline void compatRailWake() {
+  M5.Power.Axp192.setLDO3(3000);  // restore panel logic ~3.0V [ASSUMED A1 — confirm on hardware]
+  M5.Power.Axp192.setLDO2(3000);  // restore backlight rail; caller re-applies brightness [ASSUMED A1 — confirm on hardware]
+}
 #endif

@@ -93,11 +93,15 @@ Plans:
   3. The "vibrate" settings entry is relabelled to "chime"/"haptics", and the UI-beep-vs-event-tone overlap is resolved so cues don't clash
   4. Both `pio run -e m5stack-sticks3` and `pio run -e m5stickc-plus` build green with the board-conditional feedback code in place
 
-**Plans**: TBD
-
+**Plans**: 2 plans
 Plans:
+**Wave 1**
 
-- [ ] 04-01: TBD
+- [ ] 04-01-PLAN.md — Board-conditional ES8311 chime engine + D-06 beep guard + D-07 settings relabel + D-08 volume cycler; StickS3 build green, StickC Plus motor path unchanged (HAPT-01/02/03)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 04-02-PLAN.md — Flash StickS3 + on-device chime/volume listening test (human-verify acceptance gate) (HAPT-01/03)
 
 ## Progress
 

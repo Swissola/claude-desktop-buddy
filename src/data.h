@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "compat.h"
 #include <ArduinoJson.h>
 #include "ble_bridge.h"
 #include "xfer.h"
@@ -81,8 +82,7 @@ static void _applyJson(const char* line, TamaState* out) {
     RTC_TimeTypeDef tm = { (uint8_t)lt.tm_hour, (uint8_t)lt.tm_min, (uint8_t)lt.tm_sec };
     RTC_DateTypeDef dt = { (uint8_t)lt.tm_wday, (uint8_t)(lt.tm_mon + 1),
                            (uint8_t)lt.tm_mday, (uint16_t)(lt.tm_year + 1900) };
-    M5.Rtc.SetTime(&tm);
-    M5.Rtc.SetDate(&dt);
+    compatRtcSet(&tm, &dt);
     extern uint32_t _clkLastRead;
     _clkLastRead = 0;   // force re-read so _clkDt and _rtcValid agree
     _rtcValid = true;

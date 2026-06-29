@@ -24,9 +24,12 @@ event chimes so the two audio cues don't clash.
   pixel-buddy character). Five distinct event chimes; approve and deny made
   audibly different (they are identical motor blips today, distinguished only by
   the UI beep tone).
-- StickC Plus motor path preserved byte-for-byte (HAPT-02).
+- StickC Plus motor path preserved byte-for-byte (HAPT-02) — verified by code-scope, not by a gating build/hardware test (see D-09; device repurposed).
 - Settings relabel + UI-beep-vs-chime overlap resolution (HAPT-03).
-- Both envs still build green with the board-conditional code.
+- A user-configurable **speaker volume** settings entry on the StickS3 (D-08).
+- The **StickS3 env builds green** with the board-conditional chime code (primary
+  acceptance). The StickC Plus env is kept compiling but is no longer a gating
+  ceremony (D-09).
 
 **Out of scope (deferred / other phases):**
 - The **selectable multi-theme chime picker** and the other three sound
@@ -56,6 +59,21 @@ event chimes so the two audio cues don't clash.
 - **D-04:** Write the chime engine **theme-ready** — structure the tone tables so
   additional voices can be added later without re-architecting — even though only
   the Retro set ships now.
+
+### Added decisions (user, 2026-06-29 — post-research)
+- **D-08 (volume IS a settings entry):** Speaker volume is **user-configurable in the
+  settings menu** on the StickS3 (a level cycler — e.g. a few steps with mute at the
+  bottom), NOT a hardcoded init default. StickS3-only (the StickC Plus motor has no
+  speaker volume). Persisted with the other settings. Supersedes the research's
+  "volume as a fixed init default" suggestion.
+- **D-09 (StickS3 is primary; dual-env de-prioritized):** The StickS3 is now the
+  primary target. The StickC Plus is kept **compiling** (chime code stays behind
+  `#if defined(BOARD_STICKS3)`; the motor `#else` path is left untouched), but the
+  **dual-env build is no longer a gating ceremony** — Phase 4 does NOT block on the
+  StickC Plus env and there is NO StickC Plus hardware test (device repurposed).
+  HAPT-02 is satisfied by **code-scope** (the motor branch is unchanged) rather than
+  by an enforced dual-env gate. Dropping StickC Plus entirely was considered and
+  declined for now (reversible). Phase verification centers on the StickS3.
 
 ### Claude's Discretion (user delegated — flagged for review, overridable)
 - **D-05 (pattern reuse):** Reuse each event's **existing rhythm/shape** from the

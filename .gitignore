@@ -12,3 +12,5 @@ data/
 managed_components/
 sdkconfig
 sdkconfig.*
+CMakeLists.txt
+dependencies.lock

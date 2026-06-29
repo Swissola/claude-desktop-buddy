@@ -625,19 +625,21 @@ const char* settingsItems[] = {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Default volume: is `setVolume(128)` appropriate?**
+   - **RESOLVED:** superseded by decision **D-08** — volume is a user-configurable settings entry (a level cycler with default index = 128), not a fixed init default. Implemented in plan 04-01 Task 2 (`VOL_LEVELS`, `applyChimeVolume()`, NVS `s_vol`).
    - What we know: default `_master_volume = 64` (~25%); confirmed in Speaker_Class.hpp:285
-   - What's unclear: how loud 128/255 sounds through the StickS3 speaker at desk distance
-   - Recommendation: add `M5.Speaker.setVolume(128)` in setup() under `#if BOARD_STICKS3`; user adjusts the constant after hardware testing. No scope creep — this is a hardware init default, not a settings entry
+   - What's unclear: how loud 128/255 sounds through the StickS3 speaker at desk distance → now user-tunable on-device via the volume setting.
 
 2. **Should OFF steps call `M5.Speaker.stop(CHIME_CH)` explicitly?**
+   - **RESOLVED:** yes — call `stop(CHIME_CH)` on OFF steps; implemented in plan 04-01 Task 1's `vibrateTick` StickS3 branch.
    - What we know: `tone(freq, dur_ms)` expires after exactly `dur_ms` ms; `vibrateTick` advances to the OFF step only after `_vibNext` elapses (≥ that `dur_ms`)
    - What's unclear: whether a late `vibrateTick` call could arrive marginally before the tone expires
    - Recommendation: yes, call `stop(CHIME_CH)` on OFF steps (already in the code example above). It is at most a few microseconds early and ensures clean silence during rests
 
 3. **Are the proposed chime pitches distinguishable through the physical speaker in a noisy desk environment?**
+   - **RESOLVED:** handled by the plan 04-02 on-device listening checkpoint (the acceptance gate) with an explicit A3 220Hz → A4 440Hz deny fallback if the low tone is attenuated.
    - What we know: E5 (659 Hz) vs A3 (220 Hz) for approve vs deny is ~3 octaves; major arpeggio for celebrate is standard "win" cue
    - What's unclear: the physical StickS3 speaker frequency response — small speakers roll off at low frequencies; A3 (220 Hz) for deny may be attenuated
    - Recommendation: if deny is inaudible at 220 Hz, raise it to A4 (440 Hz) and keep approve at E5 (659 Hz) — still clearly distinct. Hardware test is the acceptance gate (Success Criterion 1)

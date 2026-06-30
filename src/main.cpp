@@ -264,7 +264,7 @@ static void idlePowerRestore();
 static void wake() {
   lastInteractMs = millis();
   if (screenOff) {
-    setCpuFrequencyMhz(240);
+    compatSetCpuMhz(240);
     // If we were in the deep idle state, the AXP SetSleep cut LDO3 (panel logic)
     // and LDO2 (backlight) and the IMU was slept — restore them fully. Otherwise
     // just the backlight needs re-enabling.
@@ -1771,10 +1771,10 @@ void loop() {
     napStartMs = now;
     compatScreenBreath(8);
     dimmed = true;
-    setCpuFrequencyMhz(40);
+    compatSetCpuMhz(40);
   } else if (napping && faceDownFrames <= -8) {
     napping = false;
-    setCpuFrequencyMhz(240);
+    compatSetCpuMhz(240);
     statsOnNapEnd((now - napStartMs) / 1000);
     statsOnWake();
     wake();
@@ -1803,7 +1803,7 @@ void loop() {
     compatBacklight(false);
     screenOff = true;
     screenOffSinceMs = millis();
-    setCpuFrequencyMhz(40);
+    compatSetCpuMhz(40);
   }
 
   // BLE idle power save: after the configured timeout with screen off and on

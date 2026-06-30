@@ -123,6 +123,27 @@ static inline bool  compatPowerBtnShort() { return M5.Power.getKeyState() == 2; 
 static inline void  compatPowerOff()      { M5.Power.powerOff(); }
 static inline void  compatEnableCoulomb() {}   // M5Unified exposes no coulomb counter (D-04)
 
+// --- CPU-frequency throttle (idle power saving) — board-specific ---
+// On the StickS3 (ESP32-S3) dropping the CPU clock to 40MHz while the BLE
+// controller is ACTIVE starves the APB clock the radio depends on and RESETS
+// the chip. Symptom: a ~15s reboot loop on battery — the SCREEN_OFF_MS idle
+// throttle (main.cpp) fires only off-USB (keepAwakeOnUsb=_onUsb is true on USB,
+// so the throttle is skipped there → stable on USB, reboots on battery). The
+// reboot loop also keeps the device at full clock + display + radio the whole
+// time → it runs warm. Lowering frequency cannot cause a brownout (it reduces
+// current), so this is the APB-starvation reset, not a power dropout.
+// The deep-idle power win comes from screen-off backlight + esp_light_sleep_start
+// (which halts the CPU entirely, making the pre-sleep clock irrelevant), NOT from
+// this throttle — so skipping it on the S3 costs almost nothing and removes the
+// reset. The chip simply stays at its 240MHz boot frequency. StickC Plus (classic
+// ESP32, AXP, field-proven) keeps the native throttle unchanged.
+// See debug/sticks3-battery-reboot.
+#if defined(BOARD_STICKS3)
+static inline void compatSetCpuMhz(uint32_t) {}
+#else
+static inline void compatSetCpuMhz(uint32_t mhz) { setCpuFrequencyMhz(mhz); }
+#endif
+
 // --- Idle-sleep rail cut (RF-03 / D-08) — genuinely board-specific ---
 #if defined(BOARD_STICKS3)
 static inline void compatRailSleep() {}        // no AXP; backlight handled by compatBacklight

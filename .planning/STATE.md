@@ -83,7 +83,11 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+4 pending (`.planning/todos/pending/`, captured 2026-06-30):
+- Firm up StickS3 connected-idle power saving (APB-safe ~80MHz throttle / connected-idle light-sleep) — follow-up to the resolved battery-reboot fix
+- Eyeball StickS3 clock auto-rotation on USB (fix `28644cf` committed, not yet visually confirmed)
+- Restore encrypted BLE bond (link came back UNENCRYPTED after re-pair)
+- Format StickS3 LittleFS (`fsTotal=0`; blocks GIF `push-character`)
 
 ### Blockers/Concerns
 

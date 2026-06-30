@@ -183,11 +183,12 @@ struct Settings {
   bool wifi;     // placeholder — no WiFi stack linked yet, just stores the pref
   bool led;
   bool hud;
-  bool vibrate;       // Vibration HAT (GPIO26) — haptic feedback on attention/celebrate
+  bool vibrate;       // Vibration HAT (GPIO26) / chime enable (StickS3 ES8311)
   uint8_t clockRot;   // 0=auto 1=portrait 2=landscape
   bool ampm;          // true = 12hr AM/PM, false = 24hr
   uint8_t sleepIdx;   // BLE idle-sleep timeout: 0=off 1=5m 2=15m 3=30m 4=60m
   bool rightWrist;    // false=left wrist (portrait rot 0), true=right wrist (portrait rot 2, 180°)
+  uint8_t volIdx;     // StickS3 speaker volume index (D-08); ignored on StickC Plus
 };
 
 // BLE idle-sleep timeout choices (index → milliseconds). 0 = never sleep
@@ -202,7 +203,8 @@ static const uint32_t SLEEP_TIMEOUT_MS[] = {
 static const char* SLEEP_TIMEOUT_LABELS[] = { "off", "5m", "15m", "30m", "60m" };
 static const uint8_t SLEEP_TIMEOUT_N = 5;
 
-static Settings _settings = { true, true, false, true, true, true, 0, false, 2, false };
+static Settings _settings = { true, true, false, true, true, true, 0, false, 2, false, 2 };
+//                                                                                         ^ volIdx default 2 = 128 (VOL_LEVELS[2])
 
 inline void settingsLoad() {
   _prefs.begin("buddy", true);
@@ -218,6 +220,8 @@ inline void settingsLoad() {
   _settings.sleepIdx = _prefs.getUChar("s_sleep", 2);   // default 15m
   if (_settings.sleepIdx >= SLEEP_TIMEOUT_N) _settings.sleepIdx = 2;
   _settings.rightWrist = _prefs.getBool("s_rwrist", false);
+  _settings.volIdx = _prefs.getUChar("s_vol", 2);          // D-08: speaker volume index (StickS3)
+  if (_settings.volIdx > 4) _settings.volIdx = 2;           // clamp to valid range (5 levels, 0-4)
   extern uint8_t brightLevel;
   brightLevel = _prefs.getUChar("s_bright", 4);
   if (brightLevel > 4) brightLevel = 4;
@@ -236,6 +240,7 @@ inline void settingsSave() {
   _prefs.putBool("s_ampm", _settings.ampm);
   _prefs.putUChar("s_sleep", _settings.sleepIdx);
   _prefs.putBool("s_rwrist", _settings.rightWrist);
+  _prefs.putUChar("s_vol", _settings.volIdx);               // D-08: speaker volume index (StickS3)
   extern uint8_t brightLevel;
   _prefs.putUChar("s_bright", brightLevel);
   _prefs.end();

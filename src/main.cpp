@@ -391,10 +391,52 @@ void applyDisplayMode() {
 const char* menuItems[] = { "settings", "turn off", "help", "about", "demo", "close" };
 const uint8_t MENU_N = 6;
 
+// Board-aware tail indices: "volume" entry exists only on StickS3 (D-08).
+// Shared indices 0-11 are byte-identical on both boards.
+// StickS3: 12=volume, 13=reset, 14=back  (SETTINGS_N=15)
+// StickC Plus:         12=reset, 13=back  (SETTINGS_N=14)
+#if defined(BOARD_STICKS3)
+static constexpr uint8_t IDX_VOLUME = 12;
+static constexpr uint8_t IDX_RESET  = 13;
+static constexpr uint8_t IDX_BACK   = 14;
+#else
+static constexpr uint8_t IDX_RESET  = 12;
+static constexpr uint8_t IDX_BACK   = 13;
+#endif
+
+#if defined(BOARD_STICKS3)
+// Speaker volume levels (D-08). Default index 2 = 128 (~50%).
+// Chosen as a comfortable desk-companion starting point; user can cycle up/down.
+static const uint8_t VOL_LEVELS[]  = { 0, 64, 128, 192, 255 };
+static const char*   VOL_LABELS[]  = { "mute", "low", "med", "high", "max" };
+static const uint8_t VOL_LEVELS_N  = 5;
+// Apply current volume index to M5.Speaker (StickS3 only).
+// Called from setup() after settingsLoad() and from applySetting() volume case.
+static void applyChimeVolume() {
+  M5.Speaker.setVolume(VOL_LEVELS[settings().volIdx]);
+}
+#else
+static void applyChimeVolume() {}   // no-op on StickC Plus
+#endif
+
 bool    settingsOpen = false;
 uint8_t settingsSel  = 0;
-const char* settingsItems[] = { "brightness", "sound", "vibrate", "bluetooth", "wifi", "led", "transcript", "clock rot", "wrist", "12hr", "sleep", "pet", "reset", "back" };
+#if defined(BOARD_STICKS3)
+// D-07: "chime" on StickS3; D-08: "volume" entry added before "reset"/"back".
+const char* settingsItems[] = {
+  "brightness", "sound", "chime", "bluetooth", "wifi", "led",
+  "transcript", "clock rot", "wrist", "12hr", "sleep", "pet",
+  "volume", "reset", "back"
+};
+const uint8_t SETTINGS_N = 15;
+#else
+const char* settingsItems[] = {
+  "brightness", "sound", "vibrate", "bluetooth", "wifi", "led",
+  "transcript", "clock rot", "wrist", "12hr", "sleep", "pet",
+  "reset", "back"
+};
 const uint8_t SETTINGS_N = 14;
+#endif
 
 bool    resetOpen = false;
 uint8_t resetSel  = 0;
@@ -427,8 +469,14 @@ static void applySetting(uint8_t idx) {
     case 9: s.ampm = !s.ampm; break;
     case 10: s.sleepIdx = (s.sleepIdx + 1) % SLEEP_TIMEOUT_N; break;  // off/5m/15m/30m/60m
     case 11: nextPet(); return;
-    case 12: resetOpen = true; resetSel = 0; resetConfirmIdx = 0xFF; return;
-    case 13: settingsOpen = false; spr.fillSprite(characterPalette().bg); characterInvalidate(); if (buddyMode) buddyInvalidate(); return;
+#if defined(BOARD_STICKS3)
+    case IDX_VOLUME:
+      s.volIdx = (s.volIdx + 1) % VOL_LEVELS_N;
+      applyChimeVolume();
+      break;
+#endif
+    case IDX_RESET: resetOpen = true; resetSel = 0; resetConfirmIdx = 0xFF; return;
+    case IDX_BACK: settingsOpen = false; spr.fillSprite(characterPalette().bg); characterInvalidate(); if (buddyMode) buddyInvalidate(); return;
   }
   settingsSave();
 }
@@ -562,8 +610,14 @@ static void drawSettings() {
         snprintf(nm, sizeof(nm), "%s", buddySpeciesName());
         spr.print(nm);
       }
-    } else if (i == 13) {  // brightness (moved down)
+#if defined(BOARD_STICKS3)
+    } else if (i == IDX_VOLUME) {  // D-08: volume level label
+      spr.print(VOL_LABELS[s.volIdx]);
+#endif
+#if !defined(BOARD_STICKS3)
+    } else if (i == 13) {  // brightness (moved down) — StickC Plus only; index 13 = "back"
       spr.printf("%u/4", brightLevel);
+#endif
     }
   }
 
@@ -1315,6 +1369,7 @@ void setup() {
   lastInteractMs = millis();
   statsLoad();
   settingsLoad();
+  applyChimeVolume();  // D-08: restore speaker volume from NVS (StickS3 only; no-op on StickC Plus)
   batteryInit();   // enable AXP coulomb counter + load calibration baseline
   applyBrightness();
   petNameLoad();

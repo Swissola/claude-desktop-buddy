@@ -25,15 +25,22 @@ the M5StickC Plus build** — one codebase, two boards.
 - ✓ Pattern-based haptics via Vibration HAT on GPIO26/LEDC ch2 (StickC Plus) — existing
 - ✓ Settings menu (brightness, sound, vibrate, bt, wifi, led, transcript, clock, …) — existing
 - ✓ Multi-host BLE bonding, up to 7 hosts — existing (`multi-host-bonding` branch)
+- ✓ Firmware builds for M5StickS3 (ESP32-S3) from the same `src/` tree — v1.0
+- ✓ M5StickCPlus library replaced by M5Unified + M5GFX behind a `compat.h` shim — v1.0
+- ✓ M5StickC Plus build remains green from the identical source — v1.0
+- ✓ Haptic events replaced by audio chimes via `M5.Speaker` (ES8311) on StickS3 — v1.0 (hardware-verified)
+- ✓ StickC Plus retains its LEDC vibration-motor path (board-conditional) — v1.0
+- ✓ "vibrate" setting relabelled to "chime" + a persisted speaker-volume cycler added — v1.0
 
 ### Active
 
-- [ ] Firmware builds for M5StickS3 (ESP32-S3) from the same `src/` tree
-- [ ] M5StickCPlus library replaced by M5Unified + M5GFX behind a `compat.h` shim
-- [ ] M5StickC Plus build remains green from the identical source
-- [ ] Haptic events replaced by audio chimes via `M5.Speaker` (ES8311) on StickS3
-- [ ] StickC Plus retains its LEDC vibration-motor path (board-conditional)
-- [ ] "vibrate" setting relabelled to "chime"/"haptics"
+_v1.0 shipped — all migration requirements validated. Next-milestone candidates (carried-forward
+follow-ups, captured in `.planning/todos/pending/`):_
+
+- [ ] Firm up StickS3 connected-idle power saving (APB-safe ~80MHz throttle / light-sleep)
+- [ ] Restore encrypted BLE bond (came back unencrypted after a re-pair)
+- [ ] Format StickS3 LittleFS (`fsTotal=0`; enables GIF character packs)
+- [ ] Visually confirm the StickS3 clock auto-rotation fix on USB
 
 ### Out of Scope
 
@@ -87,11 +94,12 @@ the M5StickC Plus build** — one codebase, two boards.
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Replicate PR #48's M5Unified approach, don't merge its commits | Fork `main` diverged; commits would conflict in `main.cpp`/`platformio.ini` | — Pending |
-| Haptics → audio chimes via ES8311, not physical buzz | HAT can't connect to StickS3 without rewiring, which is ruled out; StickS3 has a real speaker | — Pending |
-| Keep StickC Plus LEDC motor path (board-conditional `#if BOARD_STICKS3`) | Preserve the working device; one tree, two boards | — Pending |
-| Drop the emotion system | User dislikes the visuals | — Pending |
-| Coarse granularity, 4 phases, research skipped | Technical groundwork already done in scoping conversation | — Pending |
+| Replicate PR #48's M5Unified approach, don't merge its commits | Fork `main` diverged; commits would conflict in `main.cpp`/`platformio.ini` | ✓ Good — both envs build clean from one tree |
+| Haptics → audio chimes via ES8311, not physical buzz | HAT can't connect to StickS3 without rewiring, which is ruled out; StickS3 has a real speaker | ✓ Good — five distinct chimes, hardware-verified |
+| Keep StickC Plus LEDC motor path (board-conditional `#if BOARD_STICKS3`) | Preserve the working device; one tree, two boards | ✓ Good — motor `#else` branch byte-for-byte unchanged |
+| Drop the emotion system | User dislikes the visuals | ✓ Good |
+| Coarse granularity, 4 phases, research skipped | Technical groundwork already done in scoping conversation | ✓ Good — though Phase 3 needed a 3-bug bootloop debug + Phase 4 a battery-reboot debug |
+| StickS3 CPU-throttle is a no-op (battery-reboot fix) | Dropping to 40MHz with BLE live starves the APB clock and resets the chip | ⚠️ Revisit — safe but holds 240MHz; firm up power saving next milestone |
 
 ## Evolution
 
@@ -110,5 +118,17 @@ This document evolves at phase transitions and milestone boundaries.
 3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
+## Current State (v1.0 shipped 2026-06-30)
+
+The migration is **shipped and merged** (PR #3 → `main`). Both `m5stack-sticks3` and
+`m5stickc-plus` envs build clean from one tree. The StickS3 boots an octopus buddy, plays five
+distinct chiptune chimes via the ES8311 speaker (hardware-verified at 40% volume default), has a
+persisted 6-step volume cycler, and 12-hour-clock / 60%-brightness defaults. Two bugs found and
+fixed during bring-up: a 3-bug StickS3 bootloop (Phase 3) and a battery-only ~15s reboot loop
+caused by CPU-throttling while BLE was live (post-Phase-4 debug, hardware-verified fixed).
+
+Known follow-ups for next milestone: firm up connected-idle power saving, restore the encrypted
+BLE bond, format LittleFS, and eyeball the clock auto-rotation fix (see `.planning/todos/pending/`).
+
 ---
-*Last updated: 2026-06-28 after initialization*
+*Last updated: 2026-06-30 after v1.0 (StickS3 + Chimes) milestone*

@@ -33,6 +33,30 @@ const int VIBRATE_PIN  = 26;     // Vibration HAT ERM motor, PWM
 // core 3.x ledcAttach/ledcWrite are pin-based. Left here as a reference.
 const int VIBRATE_CH   = 2;      // unused (core-3.x is pin-based — see ledcAttach)
 
+#if defined(BOARD_STICKS3)
+// ---- Chime constants (StickS3 / ES8311) ----------------------------------------
+// 16-sample 50%-duty square wave, unsigned 8-bit.
+// The 6-arg M5.Speaker.tone() overload uses this buffer for chiptune character (D-02).
+// The library default _default_tone_wav is a sine wave (Speaker_Class.cpp:73);
+// this replaces it for event chimes on the Retro / chiptune voice.
+static const uint8_t CHIME_WAV[] = {
+    0,   0,   0,   0,   0,   0,   0,   0,
+  255, 255, 255, 255, 255, 255, 255, 255
+};
+// Dedicated speaker channel for event chimes (channel 0 of 0-7).
+// UI beep uses channel = -1 (auto-select), landing on channels 1-7.
+// Separation prevents a beep from cutting off an in-progress chime.
+static constexpr uint8_t CHIME_CH = 0;
+// ---- Retro / chiptune chime voice (Phase 4 — the only voice) -------------------
+// Theme-ready: a future voice adds parallel constants; a theme-picker (deferred D-04)
+// selects the active set.  Frequencies in Hz.
+static const float CHIME_APPROVE_FREQ  = 659.0f;   // E5  – bright, "yes"
+static const float CHIME_DENY_FREQ     = 220.0f;   // A3  – dark low, "no"
+static const float CHIME_ATTN_FREQS[]  = { 330.0f, 330.0f, 784.0f };          // E4, E4, G5
+static const float CHIME_CELEB_FREQS[] = { 523.0f, 659.0f, 784.0f, 1047.0f }; // C5, E5, G5, C6
+static const float CHIME_CONN_FREQS[]  = { 392.0f, 523.0f };                  // G4, C5
+#endif
+
 // Haptic patterns: on/off durations in ms (even index = motor ON, odd = OFF),
 // zero-terminated. The motor has its own LEDC channel (VIBRATE_CH, separate from
 // the beep's ch0), so patterns play uninterrupted and multi-pulse + per-step
@@ -58,6 +82,11 @@ static uint8_t         _vibStep = 0;
 static uint32_t        _vibNext = 0;
 static uint8_t         _vibAmp  = 255;   // flat amplitude when _vibAmpArr is null
 
+#if defined(BOARD_STICKS3)
+static float        _vibFreq    = 440.0f;       // flat frequency for single-note events (approve, deny)
+static const float* _vibFreqArr = nullptr;       // per-ON-step freq array for multi-note events
+#endif
+
 // Amplitudes (PWM duty, 0-255). The motor needs a meaningful duty to register;
 // a single from-rest blip is felt around 100, while attention/celebrate carry
 // their own per-step amplitude arrays (lows ~115, highs 255). VIB_FULL is the
@@ -65,6 +94,21 @@ static uint8_t         _vibAmp  = 255;   // flat amplitude when _vibAmpArr is nu
 static const uint8_t VIB_FULL        = 255;
 static const uint8_t VIB_APPROVE_AMP = 100;  // bare blip
 static const uint8_t VIB_DENY_AMP    = 100;  // bare blip (identical to approve; beep tone differs)
+
+#if defined(BOARD_STICKS3)
+// Map each pattern pointer → its chime frequency data.
+// Pointer equality is reliable: PAT_* are file-scope static arrays (unique link-time addresses).
+// Called at the start of each vibratePatternAmp* so vibrateTick has the right freq when it fires.
+static void _chimeSetFreqs(const uint16_t* pat) {
+  _vibFreqArr = nullptr;
+  if      (pat == PAT_APPROVE)   { _vibFreq = CHIME_APPROVE_FREQ; }
+  else if (pat == PAT_DENY)      { _vibFreq = CHIME_DENY_FREQ; }
+  else if (pat == PAT_CONNECT)   { _vibFreqArr = CHIME_CONN_FREQS; }
+  else if (pat == PAT_ATTENTION) { _vibFreqArr = CHIME_ATTN_FREQS; }
+  else if (pat == PAT_CELEBRATE) { _vibFreqArr = CHIME_CELEB_FREQS; }
+  else                           { _vibFreq = 440.0f; }   // fallback
+}
+#endif
 
 // Play with a flat amplitude across all ON steps. If a pattern is already
 // playing, the new request is IGNORED so it can finish — otherwise overlapping
@@ -79,6 +123,9 @@ static void vibratePatternAmp(const uint16_t* pat, uint8_t amp) {
   _vibStep = 0;
   _vibAmp  = amp;
   _vibNext = millis();  // start immediately
+#if defined(BOARD_STICKS3)
+  _chimeSetFreqs(pat);
+#endif
 }
 
 // Play with a per-ON-step amplitude array (e.g. low/high alternation). ampArr
@@ -91,23 +138,44 @@ static void vibratePatternAmpArr(const uint16_t* pat, const uint8_t* ampArr) {
   _vibStep = 0;
   _vibAmp  = VIB_FULL;
   _vibNext = millis();
+#if defined(BOARD_STICKS3)
+  _chimeSetFreqs(pat);
+#endif
 }
 
 // Call once per loop() — advances the pattern state machine.
+// StickS3: drives M5.Speaker tones (square-wave chiptune via CHIME_WAV).
+// StickC Plus (#else): drives ledcWrite on GPIO26 ERM motor — original code verbatim (HAPT-02).
 static void vibrateTick(uint32_t now) {
   if (!_vibPat) return;
   if ((int32_t)(now - _vibNext) < 0) return;
   if (_vibPat[_vibStep] == 0) {
+    // Pattern end: stop output, clear state.
+#if defined(BOARD_STICKS3)
+    M5.Speaker.stop(CHIME_CH);
+#else
     ledcWrite(VIBRATE_PIN, 0);
-    _vibPat = nullptr;
+#endif
+    _vibPat    = nullptr;
     _vibAmpArr = nullptr;
     return;
   }
-  uint8_t amp = 0;
-  if (_vibStep % 2 == 0) {  // ON step
-    amp = _vibAmpArr ? _vibAmpArr[_vibStep / 2] : _vibAmp;
+  if (_vibStep % 2 == 0) {   // ON step
+#if defined(BOARD_STICKS3)
+    float freq = _vibFreqArr ? _vibFreqArr[_vibStep / 2] : _vibFreq;
+    M5.Speaker.tone(freq, _vibPat[_vibStep], CHIME_CH, true, CHIME_WAV, sizeof(CHIME_WAV));
+#else
+    uint8_t amp = _vibAmpArr ? _vibAmpArr[_vibStep / 2] : _vibAmp;
+    ledcWrite(VIBRATE_PIN, amp);
+#endif
+  } else {                    // OFF step / rest
+#if defined(BOARD_STICKS3)
+    // tone() duration already expired by the time vibrateTick fires; stop for explicit silence.
+    M5.Speaker.stop(CHIME_CH);
+#else
+    ledcWrite(VIBRATE_PIN, 0);
+#endif
   }
-  ledcWrite(VIBRATE_PIN, amp);
   _vibNext = now + _vibPat[_vibStep++];
 }
 
@@ -286,7 +354,16 @@ static bool lightSleepUntilEvent() {
 }
 
 static void beep(uint16_t freq, uint16_t dur) {
-  if (settings().sound) compatBeep(freq, dur);
+  if (settings().sound) {
+#if defined(BOARD_STICKS3)
+    // D-06: event chime has precedence — suppress UI beep while a chime is active.
+    // _vibPat != nullptr means the chime sequencer is running (stays set through rest gaps
+    // until the terminal zero step; more reliable than M5.Speaker.isPlaying — Pitfall 6).
+    if (!_vibPat) compatBeep(freq, dur);
+#else
+    compatBeep(freq, dur);
+#endif
+  }
 }
 
 static void sendCmd(const char* json) {
@@ -1229,8 +1306,12 @@ void setup() {
   M5.Lcd.setRotation(0);
   startBt();
   compatLedInit();            // replaces pinMode(LED_PIN,..)+digitalWrite(LED_PIN,HIGH)
+#if !defined(BOARD_STICKS3)
+  // GPIO26 motor init — StickC Plus only. StickS3 has no motor on GPIO26;
+  // skipping ledcAttach avoids driving an unconnected pin (Pitfall 5).
   ledcAttach(VIBRATE_PIN, 500, 8);  // core-3.x pin-based API (500 Hz, 8-bit resolution)
   ledcWrite(VIBRATE_PIN, 0);        // off
+#endif
   lastInteractMs = millis();
   statsLoad();
   settingsLoad();

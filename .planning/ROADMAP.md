@@ -97,7 +97,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Board-conditional ES8311 chime engine + D-06 beep guard + D-07 settings relabel + D-08 volume cycler; StickS3 build green, StickC Plus motor path unchanged (HAPT-01/02/03)
+- [x] 04-01-PLAN.md — Board-conditional ES8311 chime engine + D-06 beep guard + D-07 settings relabel + D-08 volume cycler; StickS3 build green, StickC Plus motor path unchanged (HAPT-01/02/03)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -113,4 +113,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Build System | 1/1 | Complete    | 2026-06-28 |
 | 2. Compatibility Shim | 1/1 | Complete    | 2026-06-28 |
 | 3. API Port | 5/5 | Complete    | 2026-06-29 |
-| 4. Haptics → Chimes | 0/TBD | Not started | - |
+| 4. Haptics → Chimes | 1/2 | In Progress|  |

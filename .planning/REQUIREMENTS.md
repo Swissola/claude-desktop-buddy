@@ -34,11 +34,11 @@ Requirements for this migration. Each maps to a roadmap phase.
 
 ### Haptics → Chimes
 
-- [ ] **HAPT-01**: On the StickS3 (`#if defined(BOARD_STICKS3)`), the haptic pattern engine
+- [x] **HAPT-01**: On the StickS3 (`#if defined(BOARD_STICKS3)`), the haptic pattern engine
   (`vibratePatternAmp*`) drives `M5.Speaker` tones; each event
   (approve/deny/attention/celebrate/connect) has a distinct, recognisable chime
-- [ ] **HAPT-02**: On the StickC Plus, the existing LEDC vibration-motor path is preserved unchanged
-- [ ] **HAPT-03**: The "vibrate" settings entry is relabelled to "chime"/"haptics", and the
+- [x] **HAPT-02**: On the StickC Plus, the existing LEDC vibration-motor path is preserved unchanged
+- [x] **HAPT-03**: The "vibrate" settings entry is relabelled to "chime"/"haptics", and the
   sound-vs-chime overlap (UI beep vs event tone) is resolved so cues don't clash
 
 ## v2 Requirements
@@ -79,9 +79,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PORT-01 | Phase 3 | Complete |
 | PORT-02 | Phase 3 | Complete |
 | PORT-03 | Phase 3 | Complete |
-| HAPT-01 | Phase 4 | Pending |
-| HAPT-02 | Phase 4 | Pending |
-| HAPT-03 | Phase 4 | Pending |
+| HAPT-01 | Phase 4 | Complete |
+| HAPT-02 | Phase 4 | Complete |
+| HAPT-03 | Phase 4 | Complete |
 | RECON-01 | v2 (deferred) | Deferred |
 | RECON-02 | v2 (deferred) | Deferred |
 | BUZZ-01 | v2 (deferred) | Deferred |

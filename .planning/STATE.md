@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-29T20:35:36.925Z"
-last_activity: 2026-06-29 -- Phase 04 planning complete
+last_updated: "2026-06-30T05:43:45.137Z"
+last_activity: 2026-06-30
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 75
 ---
 
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-28)
 
 **Core value:** The buddy runs on the M5StickS3 with chime feedback, without breaking the M5StickC Plus build — one codebase, two boards.
-**Current focus:** Phase 4 — haptics → chimes
+**Current focus:** Phase 04 — haptics-chimes
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
+Phase: 04 (haptics-chimes) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-06-29 -- Phase 04 planning complete
+Last activity: 2026-06-30
 
-Progress: [█████████░] 86%
+Progress: [█████████░] 89%
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [█████████░] 86%
 | Phase 03 P01 | 3 | 2 tasks | 1 files |
 | Phase 03 P04 | 12 | 2 tasks | 24 files |
 | Phase 03 P05 Task1 | 13 | 4 fixes | 4 files | (paused at Task 2 checkpoint)
+| Phase 04 P01 | 12 | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Phase 2: wrote the full compat* helper set now so Phase 3 is mechanical call-site swaps; M5.Axp.* confined to the non-StickS3 #else branch
 - [03-05]: board_build.variant = m5stack_stickc_plus required for pioarduino 55.03.39 (arduino-esp32 3.3.9 renamed the variant)
 - [03-05]: ble_bridge.cpp needs CONFIG_BLUEDROID_ENABLED/CONFIG_NIMBLE_ENABLED dual-path (ESP32=Bluedroid, ESP32-S3=NimBLE in arduino-esp32 3.x)
+- [Phase ?]: 8x0+8x255 gives square-wave character; library default is sine
+- [Phase ?]: avoids M5.Speaker.isPlaying() false-negative during rest gaps (Pitfall 6)
+- [Phase ?]: StickS3 SETTINGS_N=15 (volume at 12, reset at 13, back at 14); StickC Plus stays N=14
 
 ### Pending Todos
 
@@ -96,7 +100,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-29T19:58:12.169Z
+Last session: 2026-06-30T05:43:45.131Z
 Stopped at: Phase 4 context gathered
 Resume signal: User runs "approved" or "defer" to proceed with plan 03-05 completion
-Resume file: .planning/phases/04-haptics-chimes/04-CONTEXT.md
+Resume file: None

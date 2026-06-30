@@ -2,3 +2,15 @@
 .vscode/
 .DS_Store
 data/
+
+# pioarduino from-source framework build artifacts.
+# Triggered by `custom_sdkconfig` (CONFIG_SPIRAM=n) in platformio.ini, which is
+# the authoritative, version-controlled source of the override. These are all
+# regenerated from it on each build ("DO NOT EDIT" auto-generated dumps), so they
+# are cruft, not inputs. See debug/sticks3-bootloop.
+.dummy/
+managed_components/
+sdkconfig
+sdkconfig.*
+CMakeLists.txt
+dependencies.lock

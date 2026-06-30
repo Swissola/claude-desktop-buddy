@@ -1,8 +1,9 @@
-#include <M5StickCPlus.h>
+#include "compat.h"
 #include <LittleFS.h>
 #include <stdarg.h>
 #include <esp_sleep.h>      // light sleep for the disconnected-idle power state
 #include <driver/gpio.h>    // gpio_wakeup_enable for button wake from light sleep
+#include <esp_mac.h>        // esp_read_mac / ESP_MAC_BT (arduino-esp32 3.x moved from esp_system.h)
 #include "ble_bridge.h"
 #include "data.h"
 #include "buddy.h"
@@ -28,12 +29,33 @@ const int CX = W / 2;
 const int CY_BASE = 120;
 const int LED_PIN      = 10;     // red LED, active-low
 const int VIBRATE_PIN  = 26;     // Vibration HAT ERM motor, PWM
-// LEDC channel 2 — NOT 0: M5.Beep (Speaker) uses TONE_PIN_CHANNEL 0, so sharing
-// it meant every beep reconfigured the channel and killed the motor pattern
-// mid-buzz. Since approve/deny/attention all beep AND vibrate simultaneously,
-// the motor only ever got its first pulse before the beep stomped channel 0 —
-// the root cause of months of "haptics feel like one buzz then nothing".
-const int VIBRATE_CH   = 2;      // LEDC channel (separate from beep's ch0)
+// VIBRATE_CH was the old LEDC channel number (core ≤2.x API). Now unused —
+// core 3.x ledcAttach/ledcWrite are pin-based. Left here as a reference.
+const int VIBRATE_CH   = 2;      // unused (core-3.x is pin-based — see ledcAttach)
+
+#if defined(BOARD_STICKS3)
+// ---- Chime constants (StickS3 / ES8311) ----------------------------------------
+// 16-sample 50%-duty square wave, unsigned 8-bit.
+// The 6-arg M5.Speaker.tone() overload uses this buffer for chiptune character (D-02).
+// The library default _default_tone_wav is a sine wave (Speaker_Class.cpp:73);
+// this replaces it for event chimes on the Retro / chiptune voice.
+static const uint8_t CHIME_WAV[] = {
+    0,   0,   0,   0,   0,   0,   0,   0,
+  255, 255, 255, 255, 255, 255, 255, 255
+};
+// Dedicated speaker channel for event chimes (channel 0 of 0-7).
+// UI beep uses channel = -1 (auto-select), landing on channels 1-7.
+// Separation prevents a beep from cutting off an in-progress chime.
+static constexpr uint8_t CHIME_CH = 0;
+// ---- Retro / chiptune chime voice (Phase 4 — the only voice) -------------------
+// Theme-ready: a future voice adds parallel constants; a theme-picker (deferred D-04)
+// selects the active set.  Frequencies in Hz.
+static const float CHIME_APPROVE_FREQ  = 659.0f;   // E5  – bright, "yes"
+static const float CHIME_DENY_FREQ     = 220.0f;   // A3  – dark low, "no"
+static const float CHIME_ATTN_FREQS[]  = { 330.0f, 330.0f, 784.0f };          // E4, E4, G5
+static const float CHIME_CELEB_FREQS[] = { 523.0f, 659.0f, 784.0f, 1047.0f }; // C5, E5, G5, C6
+static const float CHIME_CONN_FREQS[]  = { 392.0f, 523.0f };                  // G4, C5
+#endif
 
 // Haptic patterns: on/off durations in ms (even index = motor ON, odd = OFF),
 // zero-terminated. The motor has its own LEDC channel (VIBRATE_CH, separate from
@@ -60,6 +82,11 @@ static uint8_t         _vibStep = 0;
 static uint32_t        _vibNext = 0;
 static uint8_t         _vibAmp  = 255;   // flat amplitude when _vibAmpArr is null
 
+#if defined(BOARD_STICKS3)
+static float        _vibFreq    = 440.0f;       // flat frequency for single-note events (approve, deny)
+static const float* _vibFreqArr = nullptr;       // per-ON-step freq array for multi-note events
+#endif
+
 // Amplitudes (PWM duty, 0-255). The motor needs a meaningful duty to register;
 // a single from-rest blip is felt around 100, while attention/celebrate carry
 // their own per-step amplitude arrays (lows ~115, highs 255). VIB_FULL is the
@@ -67,6 +94,21 @@ static uint8_t         _vibAmp  = 255;   // flat amplitude when _vibAmpArr is nu
 static const uint8_t VIB_FULL        = 255;
 static const uint8_t VIB_APPROVE_AMP = 100;  // bare blip
 static const uint8_t VIB_DENY_AMP    = 100;  // bare blip (identical to approve; beep tone differs)
+
+#if defined(BOARD_STICKS3)
+// Map each pattern pointer → its chime frequency data.
+// Pointer equality is reliable: PAT_* are file-scope static arrays (unique link-time addresses).
+// Called at the start of each vibratePatternAmp* so vibrateTick has the right freq when it fires.
+static void _chimeSetFreqs(const uint16_t* pat) {
+  _vibFreqArr = nullptr;
+  if      (pat == PAT_APPROVE)   { _vibFreq = CHIME_APPROVE_FREQ; }
+  else if (pat == PAT_DENY)      { _vibFreq = CHIME_DENY_FREQ; }
+  else if (pat == PAT_CONNECT)   { _vibFreqArr = CHIME_CONN_FREQS; }
+  else if (pat == PAT_ATTENTION) { _vibFreqArr = CHIME_ATTN_FREQS; }
+  else if (pat == PAT_CELEBRATE) { _vibFreqArr = CHIME_CELEB_FREQS; }
+  else                           { _vibFreq = 440.0f; }   // fallback
+}
+#endif
 
 // Play with a flat amplitude across all ON steps. If a pattern is already
 // playing, the new request is IGNORED so it can finish — otherwise overlapping
@@ -81,6 +123,9 @@ static void vibratePatternAmp(const uint16_t* pat, uint8_t amp) {
   _vibStep = 0;
   _vibAmp  = amp;
   _vibNext = millis();  // start immediately
+#if defined(BOARD_STICKS3)
+  _chimeSetFreqs(pat);
+#endif
 }
 
 // Play with a per-ON-step amplitude array (e.g. low/high alternation). ampArr
@@ -93,23 +138,44 @@ static void vibratePatternAmpArr(const uint16_t* pat, const uint8_t* ampArr) {
   _vibStep = 0;
   _vibAmp  = VIB_FULL;
   _vibNext = millis();
+#if defined(BOARD_STICKS3)
+  _chimeSetFreqs(pat);
+#endif
 }
 
 // Call once per loop() — advances the pattern state machine.
+// StickS3: drives M5.Speaker tones (square-wave chiptune via CHIME_WAV).
+// StickC Plus (#else): drives ledcWrite on GPIO26 ERM motor — original code verbatim (HAPT-02).
 static void vibrateTick(uint32_t now) {
   if (!_vibPat) return;
   if ((int32_t)(now - _vibNext) < 0) return;
   if (_vibPat[_vibStep] == 0) {
-    ledcWrite(VIBRATE_CH, 0);
-    _vibPat = nullptr;
+    // Pattern end: stop output, clear state.
+#if defined(BOARD_STICKS3)
+    M5.Speaker.stop(CHIME_CH);
+#else
+    ledcWrite(VIBRATE_PIN, 0);
+#endif
+    _vibPat    = nullptr;
     _vibAmpArr = nullptr;
     return;
   }
-  uint8_t amp = 0;
-  if (_vibStep % 2 == 0) {  // ON step
-    amp = _vibAmpArr ? _vibAmpArr[_vibStep / 2] : _vibAmp;
+  if (_vibStep % 2 == 0) {   // ON step
+#if defined(BOARD_STICKS3)
+    float freq = _vibFreqArr ? _vibFreqArr[_vibStep / 2] : _vibFreq;
+    M5.Speaker.tone(freq, _vibPat[_vibStep], CHIME_CH, true, CHIME_WAV, sizeof(CHIME_WAV));
+#else
+    uint8_t amp = _vibAmpArr ? _vibAmpArr[_vibStep / 2] : _vibAmp;
+    ledcWrite(VIBRATE_PIN, amp);
+#endif
+  } else {                    // OFF step / rest
+#if defined(BOARD_STICKS3)
+    // tone() duration already expired by the time vibrateTick fires; stop for explicit silence.
+    M5.Speaker.stop(CHIME_CH);
+#else
+    ledcWrite(VIBRATE_PIN, 0);
+#endif
   }
-  ledcWrite(VIBRATE_CH, amp);
   _vibNext = now + _vibPat[_vibStep++];
 }
 
@@ -132,7 +198,7 @@ unsigned long t = 0;
 // Menu
 bool    menuOpen    = false;
 uint8_t menuSel     = 0;
-uint8_t brightLevel = 4;           // 0..4 → ScreenBreath 20..100
+uint8_t brightLevel = 2;           // 0..4 → ScreenBreath 20..100 (default 2 = 60%)
 bool    btnALong    = false;
 
 enum DisplayMode { DISP_NORMAL, DISP_PET, DISP_INFO, DISP_COUNT };
@@ -189,7 +255,7 @@ static bool isFaceDown() {
   return az < -0.7f && fabsf(ax) < 0.4f && fabsf(ay) < 0.4f;
 }
 
-static void applyBrightness() { M5.Axp.ScreenBreath(20 + brightLevel * 20); }
+static void applyBrightness() { compatScreenBreath(20 + brightLevel * 20); }
 
 // Defined below (near the light-sleep helpers); forward-declared so wake() can
 // restore the rails/IMU when leaving the deep idle state.
@@ -198,14 +264,14 @@ static void idlePowerRestore();
 static void wake() {
   lastInteractMs = millis();
   if (screenOff) {
-    setCpuFrequencyMhz(240);
+    compatSetCpuMhz(240);
     // If we were in the deep idle state, the AXP SetSleep cut LDO3 (panel logic)
     // and LDO2 (backlight) and the IMU was slept — restore them fully. Otherwise
     // just the backlight needs re-enabling.
     if (bleIdleSleep) {
       idlePowerRestore();
     } else {
-      M5.Axp.SetLDO2(true);
+      compatBacklight(true);
     }
     applyBrightness();
     screenOff = false;
@@ -236,21 +302,18 @@ bool     responseSent = false;
 // power-button-off check is delayed — holding power-off registers within 60s.
 static const uint32_t LIGHT_SLEEP_TIMER_US = 60UL * 1000UL * 1000UL;
 
-// MPU6886 IMU sits on a rail that stays powered during light sleep and draws
-// ~1-3mA running. Put it in its low-power sleep mode (PWR_MGMT_1 bit6) before
-// idle-sleeping, and re-init on wake. Direct register write — the M5 lib
-// doesn't expose a sleep call. Addr 0x68, reg 0x6B, SLEEP bit = 0x40.
+// IMU sits on a rail that stays powered during light sleep and draws ~1-3mA
+// running. Put it in its low-power sleep mode before idle-sleeping; re-init
+// on wake via M5.Imu.begin() in idlePowerRestore(). M5.Imu.sleep() handles
+// both MPU6886 (StickC Plus) and BMI270 (StickS3) — board-agnostic API.
 static void imuSleep() {
-  Wire1.beginTransmission(0x68);
-  Wire1.write(0x6B);
-  Wire1.write(0x40);   // PWR_MGMT_1: SLEEP=1
-  Wire1.endTransmission();
+  M5.Imu.sleep();
 }
 
 // Enter the low-power idle state: cut the LCD rails (LDO2 backlight + LDO3 panel
-// logic) via the AXP's SetSleep (keeps DCDC1=ESP32 + LDO1=RTC), sleep the IMU,
-// and stop BLE advertising. Called once when entering bleIdleSleep. Restored by
-// idlePowerRestore() from wake().
+// logic) via compatRailSleep (keeps DCDC1=ESP32 + LDO1=RTC), sleep the IMU via
+// M5.Imu.sleep(), and stop BLE advertising. Called once when entering bleIdleSleep.
+// Restored by idlePowerRestore() from wake().
 //
 // Advertising-off is the suspected big idle win: Fix #1/#2 (cheap timer wake)
 // barely moved drain (~12.4%/hr), proving the sink is CONTINUOUS, not the
@@ -260,7 +323,7 @@ static void imuSleep() {
 // cleanly on wake. If reconnect proves flaky in testing, the fallback is a
 // reboot-on-wake (guaranteed fresh advertising).
 static void idlePowerDown() {
-  M5.Axp.SetSleep();   // reg 0x12 &= 0xA1 — disables LDO2/LDO3, keeps DCDC1+LDO1
+  compatRailSleep();   // disables LDO2 (backlight) + LDO3 (panel logic), keeps DCDC1+LDO1
   imuSleep();
   bleStopAdvertising();   // silence the radio — advertising is a continuous
                           // idle drain and nothing is listening while asleep.
@@ -270,8 +333,8 @@ static void idlePowerRestore() {
   bleStartAdvertising();                  // bring the radio back FIRST so the
                                           // daemon can find us while the screen
                                           // restores
-  M5.Axp.WakeUpDisplayAfterLightSleep();  // re-enable Ext/LDO3/LDO2/DCDC1
-  M5.Imu.Init();                          // wake + re-init the IMU
+  compatRailWake();   // re-enable LDO3/LDO2; caller re-applies brightness [ASSUMED A1: 3000mV]
+  M5.Imu.begin();     // wake + re-init the IMU
 }
 
 static bool lightSleepUntilEvent() {
@@ -291,7 +354,16 @@ static bool lightSleepUntilEvent() {
 }
 
 static void beep(uint16_t freq, uint16_t dur) {
-  if (settings().sound) M5.Beep.tone(freq, dur);
+  if (settings().sound) {
+#if defined(BOARD_STICKS3)
+    // D-06: event chime has precedence — suppress UI beep while a chime is active.
+    // _vibPat != nullptr means the chime sequencer is running (stays set through rest gaps
+    // until the terminal zero step; more reliable than M5.Speaker.isPlaying — Pitfall 6).
+    if (!_vibPat) compatBeep(freq, dur);
+#else
+    compatBeep(freq, dur);
+#endif
+  }
 }
 
 static void sendCmd(const char* json) {
@@ -319,10 +391,52 @@ void applyDisplayMode() {
 const char* menuItems[] = { "settings", "turn off", "help", "about", "demo", "close" };
 const uint8_t MENU_N = 6;
 
+// Board-aware tail indices: "volume" entry exists only on StickS3 (D-08).
+// Shared indices 0-11 are byte-identical on both boards.
+// StickS3: 12=volume, 13=reset, 14=back  (SETTINGS_N=15)
+// StickC Plus:         12=reset, 13=back  (SETTINGS_N=14)
+#if defined(BOARD_STICKS3)
+static constexpr uint8_t IDX_VOLUME = 12;
+static constexpr uint8_t IDX_RESET  = 13;
+static constexpr uint8_t IDX_BACK   = 14;
+#else
+static constexpr uint8_t IDX_RESET  = 12;
+static constexpr uint8_t IDX_BACK   = 13;
+#endif
+
+#if defined(BOARD_STICKS3)
+// Speaker volume levels (D-08): mute + five even steps at 20/40/60/80/100%.
+// Default index 2 = 102 (40%) — comfortable desk level; user can cycle up/down or mute.
+static const uint8_t VOL_LEVELS[]  = { 0, 51, 102, 153, 204, 255 };
+static const char*   VOL_LABELS[]  = { "mute", "20%", "40%", "60%", "80%", "100%" };
+static const uint8_t VOL_LEVELS_N  = 6;
+// Apply current volume index to M5.Speaker (StickS3 only).
+// Called from setup() after settingsLoad() and from applySetting() volume case.
+static void applyChimeVolume() {
+  M5.Speaker.setVolume(VOL_LEVELS[settings().volIdx]);
+}
+#else
+static void applyChimeVolume() {}   // no-op on StickC Plus
+#endif
+
 bool    settingsOpen = false;
 uint8_t settingsSel  = 0;
-const char* settingsItems[] = { "brightness", "sound", "vibrate", "bluetooth", "wifi", "led", "transcript", "clock rot", "wrist", "12hr", "sleep", "pet", "reset", "back" };
+#if defined(BOARD_STICKS3)
+// D-07: "chime" on StickS3; D-08: "volume" entry added before "reset"/"back".
+const char* settingsItems[] = {
+  "brightness", "sound", "chime", "bluetooth", "wifi", "led",
+  "transcript", "clock rot", "wrist", "12hr", "sleep", "pet",
+  "volume", "reset", "back"
+};
+const uint8_t SETTINGS_N = 15;
+#else
+const char* settingsItems[] = {
+  "brightness", "sound", "vibrate", "bluetooth", "wifi", "led",
+  "transcript", "clock rot", "wrist", "12hr", "sleep", "pet",
+  "reset", "back"
+};
 const uint8_t SETTINGS_N = 14;
+#endif
 
 bool    resetOpen = false;
 uint8_t resetSel  = 0;
@@ -355,8 +469,14 @@ static void applySetting(uint8_t idx) {
     case 9: s.ampm = !s.ampm; break;
     case 10: s.sleepIdx = (s.sleepIdx + 1) % SLEEP_TIMEOUT_N; break;  // off/5m/15m/30m/60m
     case 11: nextPet(); return;
-    case 12: resetOpen = true; resetSel = 0; resetConfirmIdx = 0xFF; return;
-    case 13: settingsOpen = false; spr.fillSprite(characterPalette().bg); characterInvalidate(); if (buddyMode) buddyInvalidate(); return;
+#if defined(BOARD_STICKS3)
+    case IDX_VOLUME:
+      s.volIdx = (s.volIdx + 1) % VOL_LEVELS_N;
+      applyChimeVolume();
+      break;
+#endif
+    case IDX_RESET: resetOpen = true; resetSel = 0; resetConfirmIdx = 0xFF; return;
+    case IDX_BACK: settingsOpen = false; spr.fillSprite(characterPalette().bg); characterInvalidate(); if (buddyMode) buddyInvalidate(); return;
   }
   settingsSave();
 }
@@ -490,8 +610,14 @@ static void drawSettings() {
         snprintf(nm, sizeof(nm), "%s", buddySpeciesName());
         spr.print(nm);
       }
-    } else if (i == 13) {  // brightness (moved down)
+#if defined(BOARD_STICKS3)
+    } else if (i == IDX_VOLUME) {  // D-08: volume level label
+      spr.print(VOL_LABELS[s.volIdx]);
+#endif
+#if !defined(BOARD_STICKS3)
+    } else if (i == 13) {  // brightness (moved down) — StickC Plus only; index 13 = "back"
       spr.printf("%u/4", brightLevel);
+#endif
     }
   }
 
@@ -526,7 +652,7 @@ static void drawReset() {
 void menuConfirm() {
   switch (menuSel) {
     case 0: settingsOpen = true; menuOpen = false; settingsSel = 0; break;
-    case 1: M5.Axp.PowerOff(); break;
+    case 1: compatPowerOff(); break;
     case 2:
     case 3:
       menuOpen = false;
@@ -580,15 +706,22 @@ static uint8_t physRotation(uint8_t orient) { return orient == 0 ? portraitRot()
 // via pushRotated (pivot set to screen centre at createSprite). Left wrist =
 // the cheap straight blit.
 static void pushFrame() {
+  // Push to &M5.Display explicitly rather than the sprite's cached _parent.
+  // `spr` is a global constructed as TFT_eSprite(&M5.Lcd) at static-init time,
+  // before the M5Unified library global `M5` binds its `M5GFX& Lcd = Display`
+  // reference — so the captured _parent is NULL (static-init-order fiasco). The
+  // null _parent crashed pushSprite/pushRotated (deref null+0x74, LoadProhibited)
+  // the first time the StickS3 ran far enough to render. Passing the live display
+  // here sidesteps the stale pointer. See debug/sticks3-bootloop.
   if (settings().rightWrist) {
     // pushRotated places the sprite's pivot onto the LCD's pivot. Set BOTH to
     // the screen centre (LCD at rotation 0 = 135x240) so the 180° frame lands
     // centred, not offset. (The sprite pivot is also set at createSprite.)
-    M5.Lcd.setRotation(0);
-    M5.Lcd.setPivot(W / 2.0f, H / 2.0f);
-    spr.pushRotated(180);
+    M5.Display.setRotation(0);
+    M5.Display.setPivot(W / 2.0f, H / 2.0f);
+    spr.pushRotated(&M5.Display, 180);
   } else {
-    spr.pushSprite(0, 0);
+    spr.pushSprite(&M5.Display, 0, 0);
   }
 }
 
@@ -602,7 +735,7 @@ static void pushFrame() {
 // AXP GetBtnPress() is CONSUMED on read, so it must be read exactly once per
 // loop; powerPollLatch caches that single read for all role accessors below.
 static bool powerPollLatch = false;
-static void buttonsPoll() { powerPollLatch = (M5.Axp.GetBtnPress() == 0x02); }
+static void buttonsPoll() { powerPollLatch = compatPowerBtnShort(); }
 
 // Logical "power" short-press (wake / screen-off toggle). Physically the power
 // button on left wrist, BtnB on right wrist.
@@ -625,14 +758,23 @@ static bool            _onUsb       = false;
 static void clockRefreshRtc() {
   if (millis() - _clkLastRead < 1000) return;
   _clkLastRead = millis();
-  _onUsb = M5.Axp.GetVBusVoltage() > 4.0f;
-  M5.Rtc.GetTime(&_clkTm);
-  M5.Rtc.GetDate(&_clkDt);
+  _onUsb = compatVBusVoltage() > 4.0f;
+  compatRtcGetTime(&_clkTm);
+  compatRtcGetDate(&_clkDt);
 }
 
 static void clockUpdateOrient() {
   float ax, ay, az;
   M5.Imu.getAccelData(&ax, &ay, &az);
+#if defined(BOARD_STICKS3)
+  // The StickS3 IMU is mounted rotated 90° relative to the StickC Plus this
+  // orientation logic was tuned on: in portrait, gravity lands on X (not Y),
+  // so the unmodified logic read portrait as landscape and vice versa. Swap
+  // X<->Y here so the rest of the state machine (written for ax = the
+  // "sideways"/landscape axis) works unchanged. The 1<->3 landscape facing
+  // self-corrects from gravity, so no sign flip is needed.
+  { float _t = ax; ax = ay; ay = _t; }
+#endif
   uint8_t lock = settings().clockRot;
   if (lock == 1) { clockOrient = 0; return; }
   if (lock == 2) {
@@ -876,9 +1018,9 @@ void drawInfo() {
   } else if (infoPage == 3) {
     _infoHeader(p, y, "DEVICE", infoPage);
 
-    int vBat_mV = (int)(M5.Axp.GetBatVoltage() * 1000);
-    int iBat_mA = (int)M5.Axp.GetBatCurrent();
-    int vBus_mV = (int)(M5.Axp.GetVBusVoltage() * 1000);
+    int vBat_mV = (int)(compatBatVoltage() * 1000);
+    int iBat_mA = (int)compatBatCurrent();
+    int vBus_mV = (int)(compatVBusVoltage() * 1000);
     int pct = batteryPct();   // coulomb-counter gauge (voltage fallback until calibrated)
     bool usb = vBus_mV > 4000;
     bool charging = usb && iBat_mA > 1;
@@ -909,7 +1051,7 @@ void drawInfo() {
     ln("  heap     %uKB", ESP.getFreeHeap() / 1024);
     ln("  bright   %u/4", brightLevel);
     ln("  bt       %s", settings().bt ? (dataBtActive() ? "linked" : "on") : "off");
-    ln("  temp     %dC", (int)M5.Axp.GetTempInAXP192());
+    ln("  temp     %dC", compatChipTempC());
 
   } else if (infoPage == 4) {
     _infoHeader(p, y, "BLUETOOTH", infoPage);
@@ -1218,19 +1360,25 @@ void drawHUD() {
 }
 
 void setup() {
-  M5.begin();
+  auto cfg = M5.config();
+  cfg.internal_imu = true;   // IMU on (replaces M5.Imu.Init())
+  cfg.internal_spk = true;   // D-09: enable speaker now, idle until used
+  cfg.internal_mic = false;  // unused; don't claim mic resources
+  cfg.clear_display = true;
+  M5.begin(cfg);
   M5.Lcd.setRotation(0);
-  M5.Imu.Init();
-  M5.Beep.begin();
   startBt();
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);   // off
-  ledcSetup(VIBRATE_CH, 500, 8); // 500 Hz, 8-bit resolution
-  ledcAttachPin(VIBRATE_PIN, VIBRATE_CH);
-  ledcWrite(VIBRATE_CH, 0);      // off
+  compatLedInit();            // replaces pinMode(LED_PIN,..)+digitalWrite(LED_PIN,HIGH)
+#if !defined(BOARD_STICKS3)
+  // GPIO26 motor init — StickC Plus only. StickS3 has no motor on GPIO26;
+  // skipping ledcAttach avoids driving an unconnected pin (Pitfall 5).
+  ledcAttach(VIBRATE_PIN, 500, 8);  // core-3.x pin-based API (500 Hz, 8-bit resolution)
+  ledcWrite(VIBRATE_PIN, 0);        // off
+#endif
   lastInteractMs = millis();
   statsLoad();
   settingsLoad();
+  applyChimeVolume();  // D-08: restore speaker volume from NVS (StickS3 only; no-op on StickC Plus)
   batteryInit();   // enable AXP coulomb counter + load calibration baseline
   applyBrightness();
   petNameLoad();
@@ -1287,14 +1435,13 @@ void loop() {
     bool btnWoke = lightSleepUntilEvent();
     M5.update();
     if (!btnWoke && !M5.BtnA.wasPressed() && !M5.BtnB.wasPressed()
-        && M5.Axp.GetBtnPress() != 0x02) {
+        && !compatPowerBtnShort()) {
       return;   // timer wake — nothing to do, straight back to sleep
     }
     wake();     // a button woke us: restore and run the loop normally
   }
 
   bleService();    // crash-safe deferred advertising restart (Bug A)
-  M5.Beep.update();
   t++;
   uint32_t now = millis();
 
@@ -1318,9 +1465,9 @@ void loop() {
 
   // LED: pulse on attention, otherwise off
   if (activeState == P_ATTENTION && settings().led) {
-    digitalWrite(LED_PIN, (now / 400) % 2 ? LOW : HIGH);
+    compatLedSet((now / 400) % 2);
   } else {
-    digitalWrite(LED_PIN, HIGH);
+    compatLedSet(false);
   }
 
   // Connection haptic: buzz the "linked up" cue when the daemon link comes up.
@@ -1432,7 +1579,7 @@ void loop() {
     if (screenOff) {
       wake();
     } else {
-      M5.Axp.SetLDO2(false);
+      compatBacklight(false);
       screenOff = true;
     }
   }
@@ -1622,12 +1769,12 @@ void loop() {
   if (!napping && faceDownFrames >= 15) {
     napping = true;
     napStartMs = now;
-    M5.Axp.ScreenBreath(8);
+    compatScreenBreath(8);
     dimmed = true;
-    setCpuFrequencyMhz(40);
+    compatSetCpuMhz(40);
   } else if (napping && faceDownFrames <= -8) {
     napping = false;
-    setCpuFrequencyMhz(240);
+    compatSetCpuMhz(240);
     statsOnNapEnd((now - napStartMs) / 1000);
     statsOnWake();
     wake();
@@ -1637,12 +1784,26 @@ void loop() {
   // so now - lastInteractMs underflows when a button is held → flicker.
   // No auto-off on USB power with data — clock face wants to stay visible when
   // connected to a PC. Wall charger/power bank (USB power, no data) times out normally.
-  if (!screenOff && !inPrompt && !(_onUsb && dataConnected())
+  //
+  // StickS3 is a USB-powered DESKTOP buddy: it sits plugged into the desk, so it
+  // stays awake on USB power ALONE (no daemon-data requirement). Without this, a
+  // daemon-less first boot would render the buddy, then blank at SCREEN_OFF_MS
+  // (~15s) because dataConnected() is false until the bridge sends data — looking
+  // like "the buddy doesn't render." The BLE idle-sleep path already requires
+  // !_onUsb, so it never runs on USB regardless; keeping the screen on while
+  // powered is consistent. StickC Plus (portable/battery) keeps the original
+  // _onUsb && dataConnected() power-saving behavior.
+#if defined(BOARD_STICKS3)
+  const bool keepAwakeOnUsb = _onUsb;
+#else
+  const bool keepAwakeOnUsb = _onUsb && dataConnected();
+#endif
+  if (!screenOff && !inPrompt && !keepAwakeOnUsb
       && millis() - lastInteractMs > SCREEN_OFF_MS) {
-    M5.Axp.SetLDO2(false);
+    compatBacklight(false);
     screenOff = true;
     screenOffSinceMs = millis();
-    setCpuFrequencyMhz(40);
+    compatSetCpuMhz(40);
   }
 
   // BLE idle power save: after the configured timeout with screen off and on
@@ -1674,7 +1835,7 @@ void loop() {
       delay(50);
       M5.update();
       if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed()) break;
-      if (M5.Axp.GetBtnPress() == 0x02) { wake(); break; }
+      if (compatPowerBtnShort()) { wake(); break; }
     }
   } else {
     delay(16);

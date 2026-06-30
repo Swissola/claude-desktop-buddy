@@ -1,6 +1,6 @@
 #include "buddy.h"
 #include "buddy_common.h"
-#include <M5StickCPlus.h>
+#include "compat.h"
 #include <string.h>
 
 extern TFT_eSprite spr;
@@ -105,7 +105,7 @@ static const Species* SPECIES_TABLE[] = {
   &MUSHROOM_SPECIES, &CHONK_SPECIES, &DOGE_SPECIES, &LLAMA_SPECIES,
 };
 static const uint8_t N_SPECIES = sizeof(SPECIES_TABLE) / sizeof(SPECIES_TABLE[0]);
-static uint8_t currentSpeciesIdx = 0;
+static uint8_t currentSpeciesIdx = 6;   // default OCTOPUS (index 6) when species NVS is unset
 
 // ──────────────── tick state ────────────────
 static uint32_t tickCount  = 0;

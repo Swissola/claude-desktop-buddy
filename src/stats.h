@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <Preferences.h>
+#include "compat.h"
 
 // Header-only with file-static state: include from exactly one translation
 // unit (main.cpp). Including from a second .cpp produces duplicate symbols.
@@ -63,7 +64,7 @@ inline void statsSave() {
 // Level is token-driven now; approvals only feed mood/velocity.
 inline void statsOnApproval(uint32_t secondsToRespond) {
   _stats.approvals++;
-  _stats.velocity[_stats.velIdx] = (uint16_t)min(secondsToRespond, 65535u);
+  _stats.velocity[_stats.velIdx] = (uint16_t)min(secondsToRespond, (uint32_t)65535u); // cast: gcc14 strict type deduction
   _stats.velIdx = (_stats.velIdx + 1) % 8;
   if (_stats.velCount < 8) _stats.velCount++;
   _dirty = true; statsSave();
@@ -182,11 +183,12 @@ struct Settings {
   bool wifi;     // placeholder — no WiFi stack linked yet, just stores the pref
   bool led;
   bool hud;
-  bool vibrate;       // Vibration HAT (GPIO26) — haptic feedback on attention/celebrate
+  bool vibrate;       // Vibration HAT (GPIO26) / chime enable (StickS3 ES8311)
   uint8_t clockRot;   // 0=auto 1=portrait 2=landscape
   bool ampm;          // true = 12hr AM/PM, false = 24hr
   uint8_t sleepIdx;   // BLE idle-sleep timeout: 0=off 1=5m 2=15m 3=30m 4=60m
   bool rightWrist;    // false=left wrist (portrait rot 0), true=right wrist (portrait rot 2, 180°)
+  uint8_t volIdx;     // StickS3 speaker volume index (D-08); ignored on StickC Plus
 };
 
 // BLE idle-sleep timeout choices (index → milliseconds). 0 = never sleep
@@ -201,7 +203,8 @@ static const uint32_t SLEEP_TIMEOUT_MS[] = {
 static const char* SLEEP_TIMEOUT_LABELS[] = { "off", "5m", "15m", "30m", "60m" };
 static const uint8_t SLEEP_TIMEOUT_N = 5;
 
-static Settings _settings = { true, true, false, true, true, true, 0, false, 2, false };
+static Settings _settings = { true, true, false, true, true, true, 0, true, 2, false, 2 };
+//                                                                          ^ ampm default true = 12hr        ^ volIdx default 2 = 102 (VOL_LEVELS[2], 40%)
 
 inline void settingsLoad() {
   _prefs.begin("buddy", true);
@@ -213,13 +216,15 @@ inline void settingsLoad() {
   _settings.vibrate  = _prefs.getBool("s_vib",  true);
   _settings.clockRot = _prefs.getUChar("s_crot", 0);
   if (_settings.clockRot > 2) _settings.clockRot = 0;
-  _settings.ampm    = _prefs.getBool("s_ampm", false);
+  _settings.ampm    = _prefs.getBool("s_ampm", true);   // default 12hr AM/PM
   _settings.sleepIdx = _prefs.getUChar("s_sleep", 2);   // default 15m
   if (_settings.sleepIdx >= SLEEP_TIMEOUT_N) _settings.sleepIdx = 2;
   _settings.rightWrist = _prefs.getBool("s_rwrist", false);
+  _settings.volIdx = _prefs.getUChar("s_vol", 2);          // D-08: speaker volume index (StickS3), default 40%
+  if (_settings.volIdx > 5) _settings.volIdx = 2;           // clamp to valid range (6 levels, 0-5)
   extern uint8_t brightLevel;
-  brightLevel = _prefs.getUChar("s_bright", 4);
-  if (brightLevel > 4) brightLevel = 4;
+  brightLevel = _prefs.getUChar("s_bright", 2);
+  if (brightLevel > 4) brightLevel = 2;
   _prefs.end();
 }
 
@@ -235,6 +240,7 @@ inline void settingsSave() {
   _prefs.putBool("s_ampm", _settings.ampm);
   _prefs.putUChar("s_sleep", _settings.sleepIdx);
   _prefs.putBool("s_rwrist", _settings.rightWrist);
+  _prefs.putUChar("s_vol", _settings.volIdx);               // D-08: speaker volume index (StickS3)
   extern uint8_t brightLevel;
   _prefs.putUChar("s_bright", brightLevel);
   _prefs.end();
@@ -297,65 +303,41 @@ inline Settings& settings() { return _settings; }
 
 inline const Stats& stats() { return _stats; }
 
-// ---- Battery gauge (AXP192 coulomb counter) ------------------------------
-// The old gauge was a crude linear voltage map (vBat-3200)/10, which jumps on
-// load changes and reads charge-inflated right off the charger. The AXP192 has
-// a hardware coulomb counter that integrates actual current in/out — accurate
-// and stable. We calibrate a baseline at a detected FULL charge: snapshot the
-// counter's net-mAh reading as "100%", persist it to NVS, and thereafter report
-// pct = 100 - (baseline - nowMAh)/CAPACITY*100. Falls back to the voltage
-// estimate until calibrated. Re-calibrates on every full charge (self-correcting
-// against coulomb drift, since the watch is charged regularly).
-static const float   BATT_CAPACITY_MAH = 120.0f;   // M5StickC Plus ~120mAh cell
-static float         _battFullCoulomb  = 0.0f;      // GetCoulombData() at last full charge
-static bool          _battCalibrated   = false;
+// ---- Battery gauge -------------------------------------------------------
+// AXP192 coulomb counter removed — M5Unified exposes no coulomb counter on
+// either board (D-04 / O2). batteryPct() now delegates to compatBatteryPct()
+// (M5.Power.getBatteryLevel()), a PMIC voltage estimate on both boards.
+// [D-08 human_needed: battery-% sanity check on hardware — StickC Plus gauge
+//  source changed from coulomb integrator to getBatteryLevel() (PMIC estimate)]
+// batteryFull() and batteryPctVoltage() retained using compat voltage helpers
+// for USB detection and diagnostic comparisons.
 
 inline void batteryInit() {
-  M5.Axp.EnableCoulombcounter();
-  _prefs.begin("buddy", true);
-  _battFullCoulomb = _prefs.getFloat("cb_full", 0.0f);
-  _battCalibrated  = _prefs.getBool("cb_cal", false);
-  _prefs.end();
+  compatEnableCoulomb();  // no-op — M5Unified exposes no coulomb counter (D-04)
 }
 
 // True when the charger has topped the cell off (USB present, high voltage, and
 // charge current tapered to near zero — the constant-voltage tail).
 inline bool batteryFull() {
-  bool usb = M5.Axp.GetVBusVoltage() > 4.0f;
-  int  mV  = (int)(M5.Axp.GetBatVoltage() * 1000);
-  int  mA  = (int)M5.Axp.GetBatCurrent();
+  bool usb = compatVBusVoltage() > 4.0f;
+  int  mV  = (int)(compatBatVoltage() * 1000);
+  int  mA  = (int)compatBatCurrent();
   return usb && mV > 4100 && mA < 10;
 }
 
-// Voltage-based fallback (the old estimate) for use before calibration.
+// Voltage-based estimate — retained for diagnostic use.
 inline int batteryPctVoltage() {
-  int mV = (int)(M5.Axp.GetBatVoltage() * 1000);
+  int mV = (int)(compatBatVoltage() * 1000);
   int pct = (mV - 3200) / 10;
   if (pct < 0) pct = 0; if (pct > 100) pct = 100;
   return pct;
 }
 
-// Call periodically. When full is detected, (re)calibrate the coulomb baseline.
-inline void batteryTick() {
-  if (batteryFull()) {
-    float c = M5.Axp.GetCoulombData();
-    // Only rewrite NVS if the baseline moved meaningfully (avoid flash wear).
-    if (!_battCalibrated || fabsf(c - _battFullCoulomb) > 2.0f) {
-      _battFullCoulomb = c;
-      _battCalibrated  = true;
-      _prefs.begin("buddy", false);
-      _prefs.putFloat("cb_full", _battFullCoulomb);
-      _prefs.putBool("cb_cal", true);
-      _prefs.end();
-    }
-  }
-}
+// Call periodically — no-op since the coulomb baseline was removed.
+inline void batteryTick() {}
 
-// Battery percentage, coulomb-based once calibrated, else voltage fallback.
+// Battery percentage via M5.Power.getBatteryLevel() on both boards.
+// [D-08 human_needed: battery-% sanity check on hardware]
 inline int batteryPct() {
-  if (!_battCalibrated) return batteryPctVoltage();
-  float drained = _battFullCoulomb - M5.Axp.GetCoulombData();   // mAh used since full
-  int pct = (int)lroundf(100.0f - (drained / BATT_CAPACITY_MAH) * 100.0f);
-  if (pct < 0) pct = 0; if (pct > 100) pct = 100;
-  return pct;
+  return compatBatteryPct();
 }

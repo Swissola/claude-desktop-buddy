@@ -7,6 +7,14 @@
 #include <Arduino.h>
 #include <string.h>
 
+// arduino-esp32 3.x: BLE stack differs by chip target.
+//   ESP32  (StickC Plus) -> Bluedroid  (CONFIG_BLUEDROID_ENABLED)
+//   ESP32-S3 (StickS3)   -> NimBLE     (CONFIG_NIMBLE_ENABLED)
+// NimBLE bond management uses ble_store, not esp_ble_*
+#if defined(CONFIG_NIMBLE_ENABLED)
+#include <host/ble_store.h>   // ble_store_clear() for bleClearBonds
+#endif
+
 // Nordic UART Service UUIDs — every BLE serial example uses these, so
 // existing tools (nRF Connect, bluefy, Web Bluetooth examples) can talk to
 // us without custom UUIDs.
@@ -33,7 +41,13 @@ static volatile uint16_t  mtu = 23;
 // BD address of the currently connected peer. Set on connect, cleared on
 // disconnect. Used by bleRemoveCurrentBond() so "unpair" only removes the
 // host that sent the command rather than wiping all stored bonds.
+// Type differs: Bluedroid uses esp_bd_addr_t (6 bytes); NimBLE uses ble_addr_t
+// (1-byte type + 6-byte val).
+#if defined(CONFIG_BLUEDROID_ENABLED)
 static esp_bd_addr_t      peerAddr;
+#elif defined(CONFIG_NIMBLE_ENABLED)
+static ble_addr_t         peerAddr;
+#endif
 static volatile bool      hasPeer = false;
 
 // Set true while the device is in deep idle-sleep: suppresses the automatic
@@ -59,13 +73,17 @@ static void rxPush(const uint8_t* p, size_t n) {
 }
 
 class RxCallbacks : public BLECharacteristicCallbacks {
+  // Common overload — called by both Bluedroid and NimBLE dispatch chains
+  // (each calls onWrite(c, param/desc) whose default calls onWrite(c)).
   void onWrite(BLECharacteristic* c) override {
-    std::string v = c->getValue();
-    if (!v.empty()) rxPush((const uint8_t*)v.data(), v.size());
+    String v = c->getValue();   // arduino-esp32 3.x: getValue() returns String
+    if (v.length()) rxPush((const uint8_t*)v.c_str(), v.length());
   }
 };
 
 class ServerCallbacks : public BLEServerCallbacks {
+  // Callback signatures differ between Bluedroid (ESP32) and NimBLE (ESP32-S3).
+#if defined(CONFIG_BLUEDROID_ENABLED)
   // Use the extended overload to capture the peer BD address.
   void onConnect(BLEServer* s, esp_ble_gatts_cb_param_t* param) override {
     connected = true;
@@ -82,6 +100,30 @@ class ServerCallbacks : public BLEServerCallbacks {
     mtu = 23;
     hasPeer = false;
     Serial.println("[ble] disconnected");
+    if (!idleSilenced) {
+      wantAdvRestart = true;
+    }
+  }
+  void onMtuChanged(BLEServer*, esp_ble_gatts_cb_param_t* param) override {
+    mtu = param->mtu.mtu;
+    Serial.printf("[ble] mtu=%u\n", mtu);
+  }
+#elif defined(CONFIG_NIMBLE_ENABLED)
+  void onConnect(BLEServer *pServer, ble_gap_conn_desc *desc) override {
+    connected = true;
+    memcpy(&peerAddr, &desc->peer_id_addr, sizeof(ble_addr_t));
+    hasPeer = true;
+    Serial.printf("[ble] connected %02x:%02x:%02x:%02x:%02x:%02x\n",
+      desc->peer_id_addr.val[0], desc->peer_id_addr.val[1], desc->peer_id_addr.val[2],
+      desc->peer_id_addr.val[3], desc->peer_id_addr.val[4], desc->peer_id_addr.val[5]);
+  }
+  void onDisconnect(BLEServer *pServer, ble_gap_conn_desc *desc) override {
+    connected = false;
+    secure = false;
+    passkey = 0;
+    mtu = 23;
+    hasPeer = false;
+    Serial.println("[ble] disconnected");
     // Restart advertising so the next client can find us — UNLESS we're entering
     // deep idle-sleep, where we deliberately keep the radio silent to save power
     // (bleStartAdvertising() re-enables it on wake). Defer the actual restart to
@@ -91,10 +133,11 @@ class ServerCallbacks : public BLEServerCallbacks {
       wantAdvRestart = true;
     }
   }
-  void onMtuChanged(BLEServer*, esp_ble_gatts_cb_param_t* param) override {
-    mtu = param->mtu.mtu;
+  void onMtuChanged(BLEServer *pServer, ble_gap_conn_desc *desc, uint16_t newMtu) override {
+    mtu = newMtu;
     Serial.printf("[ble] mtu=%u\n", mtu);
   }
+#endif
 };
 
 // LE Secure Connections, passkey-entry: we are DisplayOnly, the central
@@ -109,12 +152,21 @@ class SecCallbacks : public BLESecurityCallbacks {
     passkey = pk;
     Serial.printf("[ble] passkey %06lu\n", (unsigned long)pk);
   }
+#if defined(CONFIG_BLUEDROID_ENABLED)
   void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) override {
     passkey = 0;
     secure = cmpl.success;
     Serial.printf("[ble] auth %s\n", cmpl.success ? "ok" : "FAIL");
     if (!cmpl.success && server) server->disconnect(server->getConnId());
   }
+#elif defined(CONFIG_NIMBLE_ENABLED)
+  void onAuthenticationComplete(ble_gap_conn_desc *desc) override {
+    passkey = 0;
+    secure = desc->sec_state.authenticated;
+    Serial.printf("[ble] auth %s\n", desc->sec_state.authenticated ? "ok" : "FAIL");
+    if (!desc->sec_state.authenticated && server) server->disconnect(server->getConnId());
+  }
+#endif
 };
 
 void bleInit(const char* deviceName) {
@@ -122,7 +174,9 @@ void bleInit(const char* deviceName) {
   // Request the biggest MTU we can get. macOS negotiates to 185 typically.
   BLEDevice::setMTU(517);
 
-  BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
+  // Bluedroid: setEncryptionLevel was removed in arduino-esp32 3.x;
+  // encryption level is implied by ESP_LE_AUTH_REQ_SC_BOND in BLESecurity below.
+  // NimBLE: security is set entirely via BLESecurity object.
   BLEDevice::setSecurityCallbacks(new SecCallbacks());
 
   server = BLEDevice::createServer();
@@ -216,13 +270,21 @@ void bleRemoveCurrentBond() {
     Serial.println("[ble] unpair: no peer to remove");
     return;
   }
+#if defined(CONFIG_BLUEDROID_ENABLED)
   esp_ble_remove_bond_device(peerAddr);
   Serial.printf("[ble] removed bond %02x:%02x:%02x:%02x:%02x:%02x\n",
     peerAddr[0], peerAddr[1], peerAddr[2],
     peerAddr[3], peerAddr[4], peerAddr[5]);
+#elif defined(CONFIG_NIMBLE_ENABLED)
+  ble_gap_unpair(&peerAddr);
+  Serial.printf("[ble] removed bond %02x:%02x:%02x:%02x:%02x:%02x\n",
+    peerAddr.val[0], peerAddr.val[1], peerAddr.val[2],
+    peerAddr.val[3], peerAddr.val[4], peerAddr.val[5]);
+#endif
 }
 
 void bleClearBonds() {
+#if defined(CONFIG_BLUEDROID_ENABLED)
   int n = esp_ble_get_bond_device_num();
   if (n <= 0) return;
   esp_ble_bond_dev_t* list = (esp_ble_bond_dev_t*)malloc(n * sizeof(esp_ble_bond_dev_t));
@@ -231,6 +293,10 @@ void bleClearBonds() {
   for (int i = 0; i < n; i++) esp_ble_remove_bond_device(list[i].bd_addr);
   free(list);
   Serial.printf("[ble] cleared %d bond(s)\n", n);
+#elif defined(CONFIG_NIMBLE_ENABLED)
+  ble_store_clear();
+  Serial.println("[ble] cleared all bonds (NimBLE)");
+#endif
 }
 
 size_t bleAvailable() {

@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Build System** - Dual-env `platformio.ini` on M5Unified + M5GFX with 8MB partitions (completed 2026-06-28)
 - [x] **Phase 2: Compatibility Shim** - `src/compat.h` re-creates legacy names so UI code stays untouched (completed 2026-06-28)
 - [x] **Phase 3: API Port** - Port `main.cpp` + buddy/character code to the unified API; both envs build clean (completed 2026-06-29)
-- [ ] **Phase 4: Haptics → Chimes** - Board-conditional ES8311 chimes on StickS3, LEDC motor kept on StickC Plus
+- [x] **Phase 4: Haptics → Chimes** - Board-conditional ES8311 chimes on StickS3, LEDC motor kept on StickC Plus (completed 2026-06-30)
 
 ## Phase Details
 
@@ -101,7 +101,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 04-02-PLAN.md — Flash StickS3 + on-device chime/volume listening test (human-verify acceptance gate) (HAPT-01/03)
+- [x] 04-02-PLAN.md — Flash StickS3 + on-device chime/volume listening test (human-verify acceptance gate) (HAPT-01/03)
 
 ## Progress
 
@@ -113,4 +113,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Build System | 1/1 | Complete    | 2026-06-28 |
 | 2. Compatibility Shim | 1/1 | Complete    | 2026-06-28 |
 | 3. API Port | 5/5 | Complete    | 2026-06-29 |
-| 4. Haptics → Chimes | 1/2 | In Progress|  |
+| 4. Haptics → Chimes | 2/2 | Complete   | 2026-06-30 |

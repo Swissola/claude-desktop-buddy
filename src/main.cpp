@@ -406,7 +406,7 @@ static constexpr uint8_t IDX_BACK   = 13;
 
 #if defined(BOARD_STICKS3)
 // Speaker volume levels (D-08): mute + five even steps at 20/40/60/80/100%.
-// Default index 3 = 153 (60%) — clearly audible on a desk; user can cycle up/down or mute.
+// Default index 2 = 102 (40%) — comfortable desk level; user can cycle up/down or mute.
 static const uint8_t VOL_LEVELS[]  = { 0, 51, 102, 153, 204, 255 };
 static const char*   VOL_LABELS[]  = { "mute", "20%", "40%", "60%", "80%", "100%" };
 static const uint8_t VOL_LEVELS_N  = 6;
@@ -766,6 +766,15 @@ static void clockRefreshRtc() {
 static void clockUpdateOrient() {
   float ax, ay, az;
   M5.Imu.getAccelData(&ax, &ay, &az);
+#if defined(BOARD_STICKS3)
+  // The StickS3 IMU is mounted rotated 90° relative to the StickC Plus this
+  // orientation logic was tuned on: in portrait, gravity lands on X (not Y),
+  // so the unmodified logic read portrait as landscape and vice versa. Swap
+  // X<->Y here so the rest of the state machine (written for ax = the
+  // "sideways"/landscape axis) works unchanged. The 1<->3 landscape facing
+  // self-corrects from gravity, so no sign flip is needed.
+  { float _t = ax; ax = ay; ay = _t; }
+#endif
   uint8_t lock = settings().clockRot;
   if (lock == 1) { clockOrient = 0; return; }
   if (lock == 2) {

@@ -203,8 +203,8 @@ static const uint32_t SLEEP_TIMEOUT_MS[] = {
 static const char* SLEEP_TIMEOUT_LABELS[] = { "off", "5m", "15m", "30m", "60m" };
 static const uint8_t SLEEP_TIMEOUT_N = 5;
 
-static Settings _settings = { true, true, false, true, true, true, 0, true, 2, false, 3 };
-//                                                                          ^ ampm default true = 12hr        ^ volIdx default 3 = 153 (VOL_LEVELS[3], 60%)
+static Settings _settings = { true, true, false, true, true, true, 0, true, 2, false, 2 };
+//                                                                          ^ ampm default true = 12hr        ^ volIdx default 2 = 102 (VOL_LEVELS[2], 40%)
 
 inline void settingsLoad() {
   _prefs.begin("buddy", true);
@@ -220,8 +220,8 @@ inline void settingsLoad() {
   _settings.sleepIdx = _prefs.getUChar("s_sleep", 2);   // default 15m
   if (_settings.sleepIdx >= SLEEP_TIMEOUT_N) _settings.sleepIdx = 2;
   _settings.rightWrist = _prefs.getBool("s_rwrist", false);
-  _settings.volIdx = _prefs.getUChar("s_vol", 3);          // D-08: speaker volume index (StickS3), default 60%
-  if (_settings.volIdx > 5) _settings.volIdx = 3;           // clamp to valid range (6 levels, 0-5)
+  _settings.volIdx = _prefs.getUChar("s_vol", 2);          // D-08: speaker volume index (StickS3), default 40%
+  if (_settings.volIdx > 5) _settings.volIdx = 2;           // clamp to valid range (6 levels, 0-5)
   extern uint8_t brightLevel;
   brightLevel = _prefs.getUChar("s_bright", 2);
   if (brightLevel > 4) brightLevel = 2;

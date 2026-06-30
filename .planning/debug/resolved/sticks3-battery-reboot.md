@@ -1,6 +1,6 @@
 ---
 slug: sticks3-battery-reboot
-status: awaiting_human_verify
+status: resolved
 trigger: "M5StickS3 reboots (crashes to the buddy splash) roughly every ~15s while BLE-connected and running on BATTERY power; stable on USB power; unit runs warm (elevated current draw). Surfaced after the Phase 3 API port + Phase 4 chimes, on first extended untethered/on-wrist use."
 created: 2026-06-30
 updated: 2026-06-30
@@ -107,3 +107,18 @@ verification: |
 files_changed:
   - src/compat.h: added board-conditional compatSetCpuMhz() (no-op on BOARD_STICKS3, native setCpuFrequencyMhz on StickC Plus)
   - src/main.cpp: routed all four setCpuFrequencyMhz() calls through compatSetCpuMhz()
+
+human_verified: |
+  CONFIRMED 2026-06-30 (user, on battery): PASS. No ~15s reboot loop — device stays alive
+  on battery while BLE-connected, and runs COOLER than before. Root cause + fix validated on
+  hardware. The fallback pivot (backlight-off) was not needed.
+
+follow_up: |
+  POWER SAVING NEEDS FIRMING UP (deferred to a future session — user noted). The fix makes the
+  StickS3 CPU-throttle a no-op, so while BLE-connected + screen-off the chip holds 240MHz instead
+  of dropping to a lower clock — safe (no APB starvation) but not optimal for battery life/heat.
+  A future session should add an APB-safe throttle on the StickS3 (e.g. drop to 80MHz, which keeps
+  the radio's APB clock valid, rather than 40MHz) for the connected-idle window, and/or revisit the
+  connected-idle light-sleep path so an idle-but-connected device on battery actually low-powers.
+  This is an optimization, NOT a regression — the reboot loop is fixed and the device already runs
+  cooler than the (broken) baseline.

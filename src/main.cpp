@@ -198,7 +198,7 @@ unsigned long t = 0;
 // Menu
 bool    menuOpen    = false;
 uint8_t menuSel     = 0;
-uint8_t brightLevel = 4;           // 0..4 → ScreenBreath 20..100
+uint8_t brightLevel = 2;           // 0..4 → ScreenBreath 20..100 (default 2 = 60%)
 bool    btnALong    = false;
 
 enum DisplayMode { DISP_NORMAL, DISP_PET, DISP_INFO, DISP_COUNT };
@@ -405,11 +405,11 @@ static constexpr uint8_t IDX_BACK   = 13;
 #endif
 
 #if defined(BOARD_STICKS3)
-// Speaker volume levels (D-08). Default index 2 = 128 (~50%).
-// Chosen as a comfortable desk-companion starting point; user can cycle up/down.
-static const uint8_t VOL_LEVELS[]  = { 0, 64, 128, 192, 255 };
-static const char*   VOL_LABELS[]  = { "mute", "low", "med", "high", "max" };
-static const uint8_t VOL_LEVELS_N  = 5;
+// Speaker volume levels (D-08): mute + five even steps at 20/40/60/80/100%.
+// Default index 3 = 153 (60%) — clearly audible on a desk; user can cycle up/down or mute.
+static const uint8_t VOL_LEVELS[]  = { 0, 51, 102, 153, 204, 255 };
+static const char*   VOL_LABELS[]  = { "mute", "20%", "40%", "60%", "80%", "100%" };
+static const uint8_t VOL_LEVELS_N  = 6;
 // Apply current volume index to M5.Speaker (StickS3 only).
 // Called from setup() after settingsLoad() and from applySetting() volume case.
 static void applyChimeVolume() {

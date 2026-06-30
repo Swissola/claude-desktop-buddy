@@ -2,10 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 4 context gathered
-last_updated: "2026-06-30T06:30:43.954Z"
-last_activity: 2026-06-30 -- Phase 04 marked complete
+status: "Milestone shipped — Swissola/claude-desktop-buddy PR #3"
+last_updated: "2026-06-30T08:32:46.657Z"
+last_activity: 2026-06-30
 progress:
   total_phases: 4
   completed_phases: 4
@@ -27,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-06-28)
 
 Phase: 04 — COMPLETE
 Plan: 2 of 2
-Status: Phase 04 complete
-Last activity: 2026-06-30 -- Phase 04 marked complete
+Status: Milestone shipped — Swissola/claude-desktop-buddy PR #3
+Last activity: 2026-06-30
 
 Progress: [█████████░] 89%
 
@@ -84,6 +83,7 @@ Recent decisions affecting current work:
 ### Pending Todos
 
 4 pending (`.planning/todos/pending/`, captured 2026-06-30):
+
 - Firm up StickS3 connected-idle power saving (APB-safe ~80MHz throttle / connected-idle light-sleep) — follow-up to the resolved battery-reboot fix
 - Eyeball StickS3 clock auto-rotation on USB (fix `28644cf` committed, not yet visually confirmed)
 - Restore encrypted BLE bond (link came back UNENCRYPTED after re-pair)
